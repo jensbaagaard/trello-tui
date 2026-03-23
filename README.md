@@ -14,13 +14,13 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 ## Installation
 
 ```bash
-go install github.com/jensaagaard/trello-tui@latest
+go install github.com/jensbaagaard/trello-tui@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/jensaagaard/trello-tui.git
+git clone https://github.com/jensbaagaard/trello-tui.git
 cd trello-tui
 go build -o trello-tui .
 ```
@@ -55,37 +55,37 @@ trello-tui
 
 #### Board List
 
-| Key | Action |
-|-----|--------|
+| Key       | Action          |
+| --------- | --------------- |
 | `j` / `k` | Navigate boards |
-| `/` | Filter boards |
-| `enter` | Open board |
-| `q` | Quit |
+| `/`       | Filter boards   |
+| `enter`   | Open board      |
+| `q`       | Quit            |
 
 #### Board View
 
-| Key | Action |
-|-----|--------|
-| `left` / `right` | Switch lists |
-| `j` / `k` | Navigate cards |
-| `n` | New card |
-| `c` | Archive card (confirms with `y`/`n`) |
-| `,` / `.` | Move card left / right |
-| `<` / `>` | Move card to first / last list |
-| `enter` | Open card detail |
-| `r` | Refresh |
-| `esc` | Back to board list |
+| Key              | Action                               |
+| ---------------- | ------------------------------------ |
+| `left` / `right` | Switch lists                         |
+| `j` / `k`        | Navigate cards                       |
+| `n`              | New card                             |
+| `c`              | Archive card (confirms with `y`/`n`) |
+| `,` / `.`        | Move card left / right               |
+| `<` / `>`        | Move card to first / last list       |
+| `enter`          | Open card detail                     |
+| `r`              | Refresh                              |
+| `esc`            | Back to board list                   |
 
 #### Card Detail
 
-| Key | Action |
-|-----|--------|
-| `t` / `e` | Edit title |
-| `E` | Edit description |
-| `m` | Move to list (picker) |
-| `,` / `.` | Move card left / right |
+| Key       | Action                    |
+| --------- | ------------------------- |
+| `t` / `e` | Edit title                |
+| `E`       | Edit description          |
+| `m`       | Move to list (picker)     |
+| `,` / `.` | Move card left / right    |
 | `<` / `>` | Move to first / last list |
-| `esc` | Back to board |
+| `esc`     | Back to board             |
 
 ## License
 
