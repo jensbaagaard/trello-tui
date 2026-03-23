@@ -1,4 +1,4 @@
-module github.com/jensaagaard/trello-tui
+module github.com/jensbaagaard/trello-tui
 
 go 1.25.0
 

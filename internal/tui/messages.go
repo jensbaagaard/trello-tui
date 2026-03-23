@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/jensaagaard/trello-tui/internal/trello"
+import "github.com/jensbaagaard/trello-tui/internal/trello"
 
 type BoardsFetchedMsg struct {
 	Boards []trello.Board
