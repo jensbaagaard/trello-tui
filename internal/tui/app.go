@@ -70,7 +70,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.screen == screenBoard && m.board.mode == boardNav {
 				card := m.board.selectedCard()
 				if card != nil {
-					m.card = NewCardModel(m.client, *card, m.board.lists, m.board.activeList)
+					fullListIndex := 0
+				for i, l := range m.board.lists {
+					if l.ID == card.IDList {
+						fullListIndex = i
+						break
+					}
+				}
+				m.card = NewCardModel(m.client, *card, m.board.lists, fullListIndex)
 					m.screen = screenCard
 					return m, func() tea.Msg {
 						return tea.WindowSizeMsg{Width: m.width, Height: m.height}

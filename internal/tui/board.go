@@ -84,17 +84,33 @@ func (m BoardModel) fetchAllCards() tea.Cmd {
 	}
 }
 
+// visibleLists returns the lists to render. When a filter is active, lists with
+// no matching cards are hidden.
+func (m BoardModel) visibleLists() []trello.List {
+	if m.filterText == "" {
+		return m.lists
+	}
+	var result []trello.List
+	for _, l := range m.lists {
+		if len(m.filteredCards(l.ID)) > 0 {
+			result = append(result, l)
+		}
+	}
+	return result
+}
+
 // visibleColCount returns how many columns fit on screen at the fixed width.
 func (m BoardModel) visibleColCount() int {
-	if m.width <= 0 || len(m.lists) == 0 {
+	vis := len(m.visibleLists())
+	if m.width <= 0 || vis == 0 {
 		return 1
 	}
 	n := m.width / minColWidth
 	if n < 1 {
 		n = 1
 	}
-	if n > len(m.lists) {
-		n = len(m.lists)
+	if n > vis {
+		n = vis
 	}
 	return n
 }
@@ -121,7 +137,7 @@ func (m *BoardModel) ensureListVisible() {
 	if m.activeList < m.colOffset {
 		m.colOffset = m.activeList
 	}
-	max := len(m.lists) - vis
+	max := len(m.visibleLists()) - vis
 	if max < 0 {
 		max = 0
 	}
@@ -238,7 +254,7 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 			m.ensureListVisible()
 		}
 	case "right":
-		if m.activeList < len(m.lists)-1 {
+		if m.activeList < len(m.visibleLists())-1 {
 			m.activeList++
 			m.scrollTop = 0
 			m.clampCardCursor()
@@ -382,6 +398,7 @@ func (m BoardModel) handleFilterKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		m.mode = boardNav
 		m.activeCard = 0
 		m.scrollTop = 0
+		m.clampActiveList()
 		m.clampCardCursor()
 		return m, nil
 	case "esc":
@@ -389,6 +406,7 @@ func (m BoardModel) handleFilterKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		m.mode = boardNav
 		m.activeCard = 0
 		m.scrollTop = 0
+		m.clampActiveList()
 		m.clampCardCursor()
 		return m, nil
 	}
@@ -398,6 +416,7 @@ func (m BoardModel) handleFilterKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 	m.filterText = m.textInput.Value()
 	m.activeCard = 0
 	m.scrollTop = 0
+	m.clampActiveList()
 	m.clampCardCursor()
 	return m, cmd
 }
@@ -427,7 +446,8 @@ func (m BoardModel) moveCardLeft() (BoardModel, tea.Cmd) {
 	if card == nil {
 		return m, nil
 	}
-	targetList := m.lists[m.activeList-1]
+	vis := m.visibleLists()
+	targetList := vis[m.activeList-1]
 
 	listID := m.currentListID()
 	m.removeCardFromList(listID, card.ID)
@@ -449,14 +469,15 @@ func (m BoardModel) moveCardLeft() (BoardModel, tea.Cmd) {
 }
 
 func (m BoardModel) moveCardRight() (BoardModel, tea.Cmd) {
-	if m.activeList >= len(m.lists)-1 {
+	vis := m.visibleLists()
+	if m.activeList >= len(vis)-1 {
 		return m, nil
 	}
 	card := m.selectedCard()
 	if card == nil {
 		return m, nil
 	}
-	targetList := m.lists[m.activeList+1]
+	targetList := vis[m.activeList+1]
 
 	listID := m.currentListID()
 	m.removeCardFromList(listID, card.ID)
@@ -478,14 +499,15 @@ func (m BoardModel) moveCardRight() (BoardModel, tea.Cmd) {
 }
 
 func (m BoardModel) moveCardTo(targetIdx int) (BoardModel, tea.Cmd) {
-	if targetIdx == m.activeList || targetIdx < 0 || targetIdx >= len(m.lists) {
+	vis := m.visibleLists()
+	if targetIdx == m.activeList || targetIdx < 0 || targetIdx >= len(vis) {
 		return m, nil
 	}
 	card := m.selectedCard()
 	if card == nil {
 		return m, nil
 	}
-	targetList := m.lists[targetIdx]
+	targetList := vis[targetIdx]
 
 	listID := m.currentListID()
 	m.removeCardFromList(listID, card.ID)
@@ -511,7 +533,22 @@ func (m BoardModel) moveCardToFirst() (BoardModel, tea.Cmd) {
 }
 
 func (m BoardModel) moveCardToLast() (BoardModel, tea.Cmd) {
-	return m.moveCardTo(len(m.lists) - 1)
+	return m.moveCardTo(len(m.visibleLists()) - 1)
+}
+
+func (m *BoardModel) clampActiveList() {
+	vis := m.visibleLists()
+	if len(vis) == 0 {
+		m.activeList = 0
+		return
+	}
+	if m.activeList >= len(vis) {
+		m.activeList = len(vis) - 1
+	}
+	if m.activeList < 0 {
+		m.activeList = 0
+	}
+	m.colOffset = 0
 }
 
 func (m *BoardModel) clampCardCursor() {
@@ -580,8 +617,9 @@ func (m *BoardModel) removeCardFromList(listID, cardID string) {
 }
 
 func (m BoardModel) currentListID() string {
-	if m.activeList >= 0 && m.activeList < len(m.lists) {
-		return m.lists[m.activeList].ID
+	vis := m.visibleLists()
+	if m.activeList >= 0 && m.activeList < len(vis) {
+		return vis[m.activeList].ID
 	}
 	return ""
 }
@@ -609,24 +647,33 @@ func (m BoardModel) View() string {
 		return "No lists found on this board."
 	}
 
+	visLists := m.visibleLists()
+
+	if m.filterText != "" && len(visLists) == 0 {
+		header := titleStyle.Render(m.board.Name)
+		noResults := helpStyle.Render(fmt.Sprintf("\nNo cards match \"%s\"", m.filterText))
+		status := helpStyle.Render("esc:clear filter")
+		return header + noResults + "\n\n" + status
+	}
+
 	colW := m.colWidth()
 	vis := m.visibleColCount()
 	start := m.colOffset
 	end := start + vis
-	if end > len(m.lists) {
-		end = len(m.lists)
+	if end > len(visLists) {
+		end = len(visLists)
 	}
 
 	columns := make([]string, 0, vis)
 	for i := start; i < end; i++ {
-		columns = append(columns, m.renderColumn(i, m.lists[i], colW))
+		columns = append(columns, m.renderColumn(i, visLists[i], colW))
 	}
 
 	board := lipgloss.JoinHorizontal(lipgloss.Top, columns...)
 
 	var scrollHint string
-	if start > 0 || end < len(m.lists) {
-		scrollHint = helpStyle.Render(fmt.Sprintf(" [%d-%d of %d lists]", start+1, end, len(m.lists)))
+	if start > 0 || end < len(visLists) {
+		scrollHint = helpStyle.Render(fmt.Sprintf(" [%d-%d of %d lists]", start+1, end, len(visLists)))
 	}
 
 	var status string

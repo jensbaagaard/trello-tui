@@ -48,3 +48,21 @@ type CardMovedMsg struct {
 type ErrMsg struct {
 	Err error
 }
+
+type BoardMembersFetchedMsg struct {
+	Members []trello.Member
+	Err     error
+}
+
+type BoardLabelsFetchedMsg struct {
+	Labels []trello.Label
+	Err    error
+}
+
+type MemberToggledMsg struct {
+	Err error
+}
+
+type LabelToggledMsg struct {
+	Err error
+}

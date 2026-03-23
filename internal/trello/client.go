@@ -130,3 +130,31 @@ func (c *Client) ArchiveCard(cardID string) error {
 		"closed": "true",
 	}, nil)
 }
+
+func (c *Client) GetBoardMembers(boardID string) ([]Member, error) {
+	var members []Member
+	err := c.get(fmt.Sprintf("/boards/%s/members", boardID), nil, &members)
+	return members, err
+}
+
+func (c *Client) GetBoardLabels(boardID string) ([]Label, error) {
+	var labels []Label
+	err := c.get(fmt.Sprintf("/boards/%s/labels", boardID), nil, &labels)
+	return labels, err
+}
+
+func (c *Client) AddMemberToCard(cardID, memberID string) error {
+	return c.request("POST", fmt.Sprintf("/cards/%s/idMembers", cardID), map[string]string{"value": memberID}, nil)
+}
+
+func (c *Client) RemoveMemberFromCard(cardID, memberID string) error {
+	return c.request("DELETE", fmt.Sprintf("/cards/%s/idMembers/%s", cardID, memberID), nil, nil)
+}
+
+func (c *Client) AddLabelToCard(cardID, labelID string) error {
+	return c.request("POST", fmt.Sprintf("/cards/%s/idLabels", cardID), map[string]string{"value": labelID}, nil)
+}
+
+func (c *Client) RemoveLabelFromCard(cardID, labelID string) error {
+	return c.request("DELETE", fmt.Sprintf("/cards/%s/idLabels/%s", cardID, labelID), nil, nil)
+}
