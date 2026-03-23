@@ -5,9 +5,9 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jensaagaard/trello-tui/internal/config"
-	"github.com/jensaagaard/trello-tui/internal/trello"
-	"github.com/jensaagaard/trello-tui/internal/tui"
+	"github.com/jensbaagaard/trello-tui/internal/config"
+	"github.com/jensbaagaard/trello-tui/internal/trello"
+	"github.com/jensbaagaard/trello-tui/internal/tui"
 )
 
 func main() {

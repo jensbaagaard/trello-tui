@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/jensaagaard/trello-tui/internal/trello"
+	"github.com/jensbaagaard/trello-tui/internal/trello"
 )
 
 // boardItem implements list.Item for the bubbles/list component

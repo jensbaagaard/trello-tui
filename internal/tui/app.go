@@ -2,7 +2,7 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jensaagaard/trello-tui/internal/trello"
+	"github.com/jensbaagaard/trello-tui/internal/trello"
 )
 
 type screen int
