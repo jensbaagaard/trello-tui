@@ -1,0 +1,10 @@
+# Binary
+trello-tui
+
+# Config files with credentials
+config.json
+.env
+.env.*
+
+# OS
+.DS_Store

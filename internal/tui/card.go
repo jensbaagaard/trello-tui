@@ -269,6 +269,34 @@ func (m CardModel) View() string {
 		b.WriteString("\n")
 	}
 
+	// Due date
+	if m.card.Due != "" {
+		label, style := formatDue(m.card.Due, m.card.DueComplete)
+		if label != "" {
+			b.WriteString("\n")
+			b.WriteString(style.Render("Due: " + label))
+			b.WriteString("\n")
+		}
+	}
+
+	// Members
+	if len(m.card.Members) > 0 {
+		b.WriteString("\n")
+		var names []string
+		for _, member := range m.card.Members {
+			names = append(names, member.FullName)
+		}
+		b.WriteString(helpStyle.Render("Members: " + strings.Join(names, ", ")))
+		b.WriteString("\n")
+	}
+
+	// URL
+	if m.card.ShortURL != "" {
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render(m.card.ShortURL))
+		b.WriteString("\n")
+	}
+
 	b.WriteString("\n")
 
 	divider := helpStyle.Render(strings.Repeat("─", contentWidth))

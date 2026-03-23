@@ -8,12 +8,11 @@ import (
 	"net/url"
 )
 
-const baseURL = "https://api.trello.com/1"
-
 type Client struct {
 	apiKey     string
 	token      string
 	httpClient *http.Client
+	baseURL    string
 }
 
 func NewClient(apiKey, token string) *Client {
@@ -21,6 +20,7 @@ func NewClient(apiKey, token string) *Client {
 		apiKey:     apiKey,
 		token:      token,
 		httpClient: &http.Client{},
+		baseURL:    "https://api.trello.com/1",
 	}
 }
 
@@ -39,7 +39,7 @@ func (c *Client) get(endpoint string, params url.Values, result interface{}) err
 		params[k] = v
 	}
 
-	u := fmt.Sprintf("%s%s?%s", baseURL, endpoint, params.Encode())
+	u := fmt.Sprintf("%s%s?%s", c.baseURL, endpoint, params.Encode())
 	resp, err := c.httpClient.Get(u)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
@@ -61,7 +61,7 @@ func (c *Client) request(method, endpoint string, body map[string]string, result
 	}
 
 	var reqBody io.Reader
-	u := fmt.Sprintf("%s%s?%s", baseURL, endpoint, params.Encode())
+	u := fmt.Sprintf("%s%s?%s", c.baseURL, endpoint, params.Encode())
 
 	req, err := http.NewRequest(method, u, reqBody)
 	if err != nil {
@@ -101,7 +101,8 @@ func (c *Client) GetLists(boardID string) ([]List, error) {
 
 func (c *Client) GetCards(listID string) ([]Card, error) {
 	var cards []Card
-	err := c.get(fmt.Sprintf("/lists/%s/cards", listID), nil, &cards)
+	params := url.Values{"members": {"true"}}
+	err := c.get(fmt.Sprintf("/lists/%s/cards", listID), params, &cards)
 	return cards, err
 }
 

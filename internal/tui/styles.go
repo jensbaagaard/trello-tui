@@ -8,7 +8,7 @@ var (
 	secondaryColor = lipgloss.Color("#06B6D4")
 	dimColor       = lipgloss.Color("#6B7280")
 	errorColor     = lipgloss.Color("#EF4444")
-	cardBorderDim  = lipgloss.Color("#777799")
+	cardBorderDim  = lipgloss.Color("#FFFFFF")
 
 	// Column styles — simple padding, no background
 	columnStyle = lipgloss.NewStyle().
@@ -47,7 +47,43 @@ var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(primaryColor)
+
+	dueOverdueStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#EF4444")).
+				Bold(true)
+
+	dueSoonStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#F59E0B")).
+			Bold(true)
+
+	dueDoneStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#10B981"))
+
+	dueDefaultStyle = lipgloss.NewStyle().
+				Foreground(dimColor)
 )
+
+var memberColors = []lipgloss.Color{
+	lipgloss.Color("#3B82F6"), // blue
+	lipgloss.Color("#10B981"), // green
+	lipgloss.Color("#F59E0B"), // yellow
+	lipgloss.Color("#8B5CF6"), // purple
+	lipgloss.Color("#EC4899"), // pink
+	lipgloss.Color("#0EA5E9"), // sky
+	lipgloss.Color("#F97316"), // orange
+	lipgloss.Color("#84CC16"), // lime
+	lipgloss.Color("#06B6D4"), // cyan
+	lipgloss.Color("#EF4444"), // red
+}
+
+func memberColor(memberID string) lipgloss.Style {
+	var hash uint
+	for _, r := range memberID {
+		hash = hash*31 + uint(r)
+	}
+	c := memberColors[hash%uint(len(memberColors))]
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("#1a1a1a")).Background(c).Bold(true)
+}
 
 func labelColor(color string) lipgloss.Style {
 	colors := map[string]lipgloss.Color{

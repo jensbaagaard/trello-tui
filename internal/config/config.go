@@ -26,7 +26,20 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("could not determine config directory: %w", err)
 	}
 
+	return loadFromDir(configDir)
+}
+
+func loadFromDir(configDir string) (Config, error) {
 	configPath := filepath.Join(configDir, "trello-tui", "config.json")
+
+	info, err := os.Stat(configPath)
+	if err == nil {
+		if perm := info.Mode().Perm(); perm&0o077 != 0 {
+			_ = os.Chmod(configPath, 0o600)
+			fmt.Fprintf(os.Stderr, "Warning: fixed permissions on %s (was %o, now 600)\n", configPath, perm)
+		}
+	}
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return Config{}, fmt.Errorf("no credentials found.\n\n"+
@@ -34,10 +47,11 @@ func Load() (Config, error) {
 			"  export TRELLO_API_KEY=your_key\n"+
 			"  export TRELLO_TOKEN=your_token\n\n"+
 			"Or create a config file at %s:\n"+
-			"  {\"api_key\": \"your_key\", \"token\": \"your_token\"}\n\n"+
+			"  {\"api_key\": \"your_key\", \"token\": \"your_token\"}\n"+
+			"  chmod 600 %s\n\n"+
 			"Get your API key at: https://trello.com/power-ups/admin\n"+
 			"Generate a token at: https://trello.com/1/authorize?expiration=never&scope=read,write&response_type=token&key=YOUR_API_KEY",
-			configPath)
+			configPath, configPath)
 	}
 
 	var cfg Config

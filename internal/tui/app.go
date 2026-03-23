@@ -90,6 +90,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.board.mode != boardNav {
 					break
 				}
+				if m.board.filterText != "" {
+					break // let board.go handle clearing the filter
+				}
 				m.screen = screenBoardList
 				return m, nil
 			}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/jensaagaard/trello-tui/internal/trello"
 )
 
@@ -25,8 +26,19 @@ type BoardListModel struct {
 }
 
 func NewBoardListModel(client *trello.Client) BoardListModel {
-	l := list.New(nil, list.NewDefaultDelegate(), 0, 0)
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
+		Foreground(primaryColor).BorderForeground(primaryColor)
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
+		Foreground(secondaryColor).BorderForeground(primaryColor)
+	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.
+		Foreground(lipgloss.Color("#FFFFFF"))
+	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.
+		Foreground(dimColor)
+
+	l := list.New(nil, delegate, 0, 0)
 	l.Title = "Trello Boards"
+	l.Styles.Title = titleStyle
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 

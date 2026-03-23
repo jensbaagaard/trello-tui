@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +19,7 @@ const (
 	boardNav boardMode = iota
 	boardAddCard
 	boardConfirmArchive
+	boardFilter
 )
 
 type BoardModel struct {
@@ -36,6 +38,7 @@ type BoardModel struct {
 	mode        boardMode
 	textInput   textinput.Model
 	statusMsg   string
+	filterText  string
 }
 
 func NewBoardModel(client *trello.Client, board trello.Board) BoardModel {
@@ -222,6 +225,9 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 	if m.mode == boardConfirmArchive {
 		return m.handleConfirmArchiveKey(msg)
 	}
+	if m.mode == boardFilter {
+		return m.handleFilterKey(msg)
+	}
 
 	switch msg.String() {
 	case "left":
@@ -251,6 +257,7 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		}
 	case "n":
 		m.mode = boardAddCard
+		m.textInput.Placeholder = "Card title..."
 		m.textInput.SetValue("")
 		m.textInput.Focus()
 		return m, textinput.Blink
@@ -266,6 +273,19 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		return m.moveCardToFirst()
 	case ">":
 		return m.moveCardToLast()
+	case "/":
+		m.mode = boardFilter
+		m.textInput.Placeholder = "title, description, member, label..."
+		m.textInput.SetValue(m.filterText)
+		m.textInput.Focus()
+		return m, textinput.Blink
+	case "esc":
+		if m.filterText != "" {
+			m.filterText = ""
+			m.clampCardCursor()
+			m.scrollTop = 0
+			return m, nil
+		}
 	case "r":
 		m.loading = true
 		m.statusMsg = ""
@@ -308,7 +328,7 @@ func (m *BoardModel) ensureCardVisible() {
 
 func (m BoardModel) cardInnerWidth() int {
 	colW := m.colWidth()
-	inner := colW - 10
+	inner := colW - 6 // column padding (2) + card border (2) + card padding (2)
 	if inner < 10 {
 		inner = 10
 	}
@@ -355,6 +375,33 @@ func (m BoardModel) handleConfirmArchiveKey(msg tea.KeyMsg) (BoardModel, tea.Cmd
 	return m, nil
 }
 
+func (m BoardModel) handleFilterKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		m.filterText = m.textInput.Value()
+		m.mode = boardNav
+		m.activeCard = 0
+		m.scrollTop = 0
+		m.clampCardCursor()
+		return m, nil
+	case "esc":
+		m.filterText = ""
+		m.mode = boardNav
+		m.activeCard = 0
+		m.scrollTop = 0
+		m.clampCardCursor()
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(msg)
+	m.filterText = m.textInput.Value()
+	m.activeCard = 0
+	m.scrollTop = 0
+	m.clampCardCursor()
+	return m, cmd
+}
+
 func (m BoardModel) createCard(name string) tea.Cmd {
 	client := m.client
 	listID := m.currentListID()
@@ -383,12 +430,11 @@ func (m BoardModel) moveCardLeft() (BoardModel, tea.Cmd) {
 	targetList := m.lists[m.activeList-1]
 
 	listID := m.currentListID()
-	cards := m.cardsByList[listID]
-	m.cardsByList[listID] = append(cards[:m.activeCard], cards[m.activeCard+1:]...)
+	m.removeCardFromList(listID, card.ID)
 
 	m.cardsByList[targetList.ID] = append(m.cardsByList[targetList.ID], *card)
 	m.activeList--
-	m.activeCard = len(m.cardsByList[targetList.ID]) - 1
+	m.activeCard = len(m.filteredCards(targetList.ID)) - 1
 	m.scrollTop = 0
 	m.ensureCardVisible()
 	m.ensureListVisible()
@@ -413,12 +459,11 @@ func (m BoardModel) moveCardRight() (BoardModel, tea.Cmd) {
 	targetList := m.lists[m.activeList+1]
 
 	listID := m.currentListID()
-	cards := m.cardsByList[listID]
-	m.cardsByList[listID] = append(cards[:m.activeCard], cards[m.activeCard+1:]...)
+	m.removeCardFromList(listID, card.ID)
 
 	m.cardsByList[targetList.ID] = append(m.cardsByList[targetList.ID], *card)
 	m.activeList++
-	m.activeCard = len(m.cardsByList[targetList.ID]) - 1
+	m.activeCard = len(m.filteredCards(targetList.ID)) - 1
 	m.scrollTop = 0
 	m.ensureCardVisible()
 	m.ensureListVisible()
@@ -443,12 +488,11 @@ func (m BoardModel) moveCardTo(targetIdx int) (BoardModel, tea.Cmd) {
 	targetList := m.lists[targetIdx]
 
 	listID := m.currentListID()
-	cards := m.cardsByList[listID]
-	m.cardsByList[listID] = append(cards[:m.activeCard], cards[m.activeCard+1:]...)
+	m.removeCardFromList(listID, card.ID)
 
 	m.cardsByList[targetList.ID] = append(m.cardsByList[targetList.ID], *card)
 	m.activeList = targetIdx
-	m.activeCard = len(m.cardsByList[targetList.ID]) - 1
+	m.activeCard = len(m.filteredCards(targetList.ID)) - 1
 	m.scrollTop = 0
 	m.ensureCardVisible()
 	m.ensureListVisible()
@@ -480,6 +524,61 @@ func (m *BoardModel) clampCardCursor() {
 	}
 }
 
+func matchesFilter(c trello.Card, query string) bool {
+	if query == "" {
+		return true
+	}
+	q := strings.ToLower(query)
+	if strings.Contains(strings.ToLower(c.Name), q) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(c.Desc), q) {
+		return true
+	}
+	for _, m := range c.Members {
+		if strings.Contains(strings.ToLower(m.FullName), q) || strings.Contains(strings.ToLower(m.Username), q) {
+			return true
+		}
+	}
+	for _, l := range c.Labels {
+		if strings.Contains(strings.ToLower(l.Name), q) {
+			return true
+		}
+	}
+	if c.Due != "" {
+		if t, err := time.Parse(time.RFC3339Nano, c.Due); err == nil {
+			if strings.Contains(strings.ToLower(t.Format("2 Jan 2006")), q) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (m BoardModel) filteredCards(listID string) []trello.Card {
+	cards := m.cardsByList[listID]
+	if m.filterText == "" {
+		return cards
+	}
+	var result []trello.Card
+	for _, c := range cards {
+		if matchesFilter(c, m.filterText) {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
+func (m *BoardModel) removeCardFromList(listID, cardID string) {
+	cards := m.cardsByList[listID]
+	for i, c := range cards {
+		if c.ID == cardID {
+			m.cardsByList[listID] = append(cards[:i], cards[i+1:]...)
+			return
+		}
+	}
+}
+
 func (m BoardModel) currentListID() string {
 	if m.activeList >= 0 && m.activeList < len(m.lists) {
 		return m.lists[m.activeList].ID
@@ -488,7 +587,7 @@ func (m BoardModel) currentListID() string {
 }
 
 func (m BoardModel) currentCards() []trello.Card {
-	return m.cardsByList[m.currentListID()]
+	return m.filteredCards(m.currentListID())
 }
 
 func (m BoardModel) selectedCard() *trello.Card {
@@ -531,7 +630,9 @@ func (m BoardModel) View() string {
 	}
 
 	var status string
-	if m.mode == boardAddCard {
+	if m.mode == boardFilter {
+		status = "Filter: " + m.textInput.View()
+	} else if m.mode == boardAddCard {
 		status = "New card: " + m.textInput.View()
 	} else if m.mode == boardConfirmArchive {
 		card := m.selectedCard()
@@ -542,8 +643,10 @@ func (m BoardModel) View() string {
 		status = errorStyle.Render(fmt.Sprintf("Archive \"%s\"? (y/n)", name))
 	} else if m.statusMsg != "" {
 		status = m.statusMsg
+	} else if m.filterText != "" {
+		status = helpStyle.Render(fmt.Sprintf("filter: %s  ←→:lists  j/k:cards  /:edit filter  esc:clear filter", m.filterText))
 	} else {
-		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  enter:open  r:refresh  esc:back")
+		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  enter:open  /:filter  r:refresh  esc:back")
 	}
 
 	header := titleStyle.Render(m.board.Name) + scrollHint
@@ -552,13 +655,20 @@ func (m BoardModel) View() string {
 
 func (m BoardModel) renderColumn(idx int, l trello.List, width int) string {
 	isActive := idx == m.activeList
-	cards := m.cardsByList[l.ID]
+	allCards := m.cardsByList[l.ID]
+	cards := m.filteredCards(l.ID)
 	budget := m.cardBudget()
 	colH := m.columnHeight()
-	innerWidth := width - 4
+	innerWidth := width - 2
 	cardInner := m.cardInnerWidth()
 
-	title := columnTitleStyle.Width(innerWidth).Render(fmt.Sprintf("%s (%d)", l.Name, len(cards)))
+	var titleText string
+	if m.filterText != "" {
+		titleText = fmt.Sprintf("%s (%d/%d)", l.Name, len(cards), len(allCards))
+	} else {
+		titleText = fmt.Sprintf("%s (%d)", l.Name, len(cards))
+	}
+	title := columnTitleStyle.Width(innerWidth).Render(titleText)
 
 	scrollTop := 0
 	if isActive {
@@ -609,18 +719,62 @@ func (m BoardModel) renderColumn(idx int, l trello.List, width int) string {
 	return style.Width(innerWidth).Height(colH).Render(content)
 }
 
+var timeNow = time.Now
+
+func formatDue(due string, complete bool) (string, lipgloss.Style) {
+	t, err := time.Parse(time.RFC3339Nano, due)
+	if err != nil {
+		t, err = time.Parse("2006-01-02T15:04:05.000Z", due)
+		if err != nil {
+			return "", lipgloss.NewStyle()
+		}
+	}
+
+	label := t.Format("2 Jan")
+
+	if complete {
+		return "✓ " + label, dueDoneStyle
+	}
+
+	now := timeNow()
+	if t.Before(now) {
+		return "⚠ " + label, dueOverdueStyle
+	}
+	if t.Before(now.AddDate(0, 0, 7)) {
+		return "⚠ " + label, dueSoonStyle
+	}
+	return label, dueDefaultStyle
+}
+
 func renderCard(c trello.Card, width int, selected bool) string {
-	var labelLine string
+	var topLine string
+	var parts []string
 	if len(c.Labels) > 0 {
 		var pills []string
 		for _, l := range c.Labels {
 			pills = append(pills, labelColor(l.Color).Render("━━"))
 		}
-		labelLine = strings.Join(pills, " ") + "\n"
+		parts = append(parts, strings.Join(pills, " "))
+	}
+	if c.Due != "" {
+		if label, style := formatDue(c.Due, c.DueComplete); label != "" {
+			parts = append(parts, style.Render(label))
+		}
+	}
+	if len(parts) > 0 {
+		topLine = strings.Join(parts, "  ") + "\n"
 	}
 
-	name := truncate(c.Name, width*2)
-	content := labelLine + name
+	content := topLine + c.Name
+
+	if len(c.Members) > 0 {
+		var badges []string
+		for _, m := range c.Members {
+			initials := memberInitials(m.FullName)
+			badges = append(badges, memberColor(m.ID).Render(initials))
+		}
+		content += "\n\n" + strings.Join(badges, " ")
+	}
 
 	style := cardStyle
 	if selected {
@@ -628,6 +782,14 @@ func renderCard(c trello.Card, width int, selected bool) string {
 	}
 
 	return style.Width(width).Render(content)
+}
+
+func memberInitials(name string) string {
+	runes := []rune(strings.ToLower(strings.TrimSpace(name)))
+	if len(runes) > 3 {
+		runes = runes[:3]
+	}
+	return string(runes)
 }
 
 func truncate(s string, max int) string {
