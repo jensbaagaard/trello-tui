@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jensaagaard/trello-tui/internal/trello"
+	"github.com/jensbaagaard/trello-tui/internal/trello"
 )
 
 func TestBoardsFetched(t *testing.T) {

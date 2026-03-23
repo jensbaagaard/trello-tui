@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jensaagaard/trello-tui/internal/trello"
+	"github.com/jensbaagaard/trello-tui/internal/trello"
 )
 
 func newTestCardModel() CardModel {
