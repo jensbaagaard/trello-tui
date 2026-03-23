@@ -27,10 +27,7 @@ go build -o trello-tui .
 
 ## Configuration
 
-You need a Trello API key and token. Get them here:
-
-1. **API key** — https://trello.com/power-ups/admin
-2. **Token** — `https://trello.com/1/authorize?expiration=never&scope=read,write&response_type=token&key=YOUR_API_KEY`
+You need a Trello API key and token. Get them here: https://trello.com/power-ups/admin
 
 Then either set environment variables:
 
