@@ -37,6 +37,7 @@ type CardModel struct {
 	titleEdit    textinput.Model
 	descEdit     textarea.Model
 	dueInput     textinput.Model
+	pickerFilter textinput.Model
 	moveIndex    int
 	memberIndex  int
 	labelIndex   int
@@ -59,6 +60,10 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 	di.Placeholder = "YYYY-MM-DD (empty to clear)"
 	di.CharLimit = 20
 
+	pf := textinput.New()
+	pf.Placeholder = "type to filter..."
+	pf.CharLimit = 50
+
 	listName := ""
 	if listIndex >= 0 && listIndex < len(lists) {
 		listName = lists[listIndex].Name
@@ -77,9 +82,10 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 		listName:  listName,
 		boardID:   boardID,
 		moveIndex: listIndex,
-		titleEdit: ti,
-		descEdit:  ta,
-		dueInput:  di,
+		titleEdit:    ti,
+		descEdit:     ta,
+		dueInput:     di,
+		pickerFilter: pf,
 	}
 }
 
@@ -182,8 +188,43 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		m.dueInput, cmd = m.dueInput.Update(msg)
 		return m, cmd
 	}
+	if m.mode == cardAddMember || m.mode == cardAddLabel {
+		var cmd tea.Cmd
+		m.pickerFilter, cmd = m.pickerFilter.Update(msg)
+		return m, cmd
+	}
 
 	return m, nil
+}
+
+func (m CardModel) filteredMembers() []trello.Member {
+	q := strings.ToLower(m.pickerFilter.Value())
+	if q == "" {
+		return m.boardMembers
+	}
+	var result []trello.Member
+	for _, member := range m.boardMembers {
+		if strings.Contains(strings.ToLower(member.FullName), q) ||
+			strings.Contains(strings.ToLower(member.Username), q) {
+			result = append(result, member)
+		}
+	}
+	return result
+}
+
+func (m CardModel) filteredLabels() []trello.Label {
+	q := strings.ToLower(m.pickerFilter.Value())
+	if q == "" {
+		return m.boardLabels
+	}
+	var result []trello.Label
+	for _, label := range m.boardLabels {
+		if strings.Contains(strings.ToLower(label.Name), q) ||
+			strings.Contains(strings.ToLower(label.Color), q) {
+			result = append(result, label)
+		}
+	}
+	return result
 }
 
 func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
@@ -244,7 +285,8 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 	case cardAddMember:
 		switch msg.String() {
 		case "j", "down":
-			if m.memberIndex < len(m.boardMembers)-1 {
+			filtered := m.filteredMembers()
+			if m.memberIndex < len(filtered)-1 {
 				m.memberIndex++
 			}
 		case "k", "up":
@@ -252,8 +294,9 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				m.memberIndex--
 			}
 		case "enter", " ":
-			if len(m.boardMembers) > 0 && m.memberIndex < len(m.boardMembers) {
-				member := m.boardMembers[m.memberIndex]
+			filtered := m.filteredMembers()
+			if len(filtered) > 0 && m.memberIndex < len(filtered) {
+				member := filtered[m.memberIndex]
 				client := m.client
 				cardID := m.card.ID
 				memberID := member.ID
@@ -272,13 +315,23 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			}
 		case "esc":
 			m.mode = cardView
+			m.pickerFilter.SetValue("")
+		default:
+			prev := m.pickerFilter.Value()
+			var cmd tea.Cmd
+			m.pickerFilter, cmd = m.pickerFilter.Update(msg)
+			if m.pickerFilter.Value() != prev {
+				m.memberIndex = 0
+			}
+			return m, cmd
 		}
 		return m, nil
 
 	case cardAddLabel:
 		switch msg.String() {
 		case "j", "down":
-			if m.labelIndex < len(m.boardLabels)-1 {
+			filtered := m.filteredLabels()
+			if m.labelIndex < len(filtered)-1 {
 				m.labelIndex++
 			}
 		case "k", "up":
@@ -286,8 +339,9 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				m.labelIndex--
 			}
 		case "enter", " ":
-			if len(m.boardLabels) > 0 && m.labelIndex < len(m.boardLabels) {
-				label := m.boardLabels[m.labelIndex]
+			filtered := m.filteredLabels()
+			if len(filtered) > 0 && m.labelIndex < len(filtered) {
+				label := filtered[m.labelIndex]
 				client := m.client
 				cardID := m.card.ID
 				labelID := label.ID
@@ -306,6 +360,15 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			}
 		case "esc":
 			m.mode = cardView
+			m.pickerFilter.SetValue("")
+		default:
+			prev := m.pickerFilter.Value()
+			var cmd tea.Cmd
+			m.pickerFilter, cmd = m.pickerFilter.Update(msg)
+			if m.pickerFilter.Value() != prev {
+				m.labelIndex = 0
+			}
+			return m, cmd
 		}
 		return m, nil
 
@@ -354,15 +417,21 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 		case "a":
 			m.mode = cardAddMember
 			m.memberIndex = 0
+			m.pickerFilter.SetValue("")
+			m.pickerFilter.Focus()
 			if len(m.boardMembers) == 0 {
-				return m, m.fetchBoardMembers()
+				return m, tea.Batch(textinput.Blink, m.fetchBoardMembers())
 			}
+			return m, textinput.Blink
 		case "l":
 			m.mode = cardAddLabel
 			m.labelIndex = 0
+			m.pickerFilter.SetValue("")
+			m.pickerFilter.Focus()
 			if len(m.boardLabels) == 0 {
-				return m, m.fetchBoardLabels()
+				return m, tea.Batch(textinput.Blink, m.fetchBoardLabels())
 			}
+			return m, textinput.Blink
 		case "d":
 			m.mode = cardSetDue
 			currentVal := ""
@@ -557,48 +626,60 @@ func (m CardModel) View() string {
 		}
 	case cardAddMember:
 		b.WriteString(sectionTitle.Render("Add / remove member"))
-		b.WriteString("\n" + divider + "\n\n")
+		b.WriteString("\n" + divider + "\n")
+		b.WriteString(m.pickerFilter.View() + "\n\n")
 		if len(m.boardMembers) == 0 {
 			b.WriteString(helpStyle.Render("Loading...") + "\n")
 		} else {
-			for i, member := range m.boardMembers {
-				cursor := "  "
-				style := lipgloss.NewStyle()
-				if i == m.memberIndex {
-					cursor = "▸ "
-					style = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+			filtered := m.filteredMembers()
+			if len(filtered) == 0 {
+				b.WriteString(helpStyle.Render("No matches") + "\n")
+			} else {
+				for i, member := range filtered {
+					cursor := "  "
+					style := lipgloss.NewStyle()
+					if i == m.memberIndex {
+						cursor = "▸ "
+						style = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+					}
+					check := "  "
+					if m.isOnCard(member.ID) {
+						check = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓ ")
+					}
+					b.WriteString(cursor + check + style.Render(member.FullName) + "\n")
 				}
-				check := "  "
-				if m.isOnCard(member.ID) {
-					check = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓ ")
-				}
-				b.WriteString(cursor + check + style.Render(member.FullName) + "\n")
 			}
 		}
 		b.WriteString("\n" + helpStyle.Render("enter/space: toggle  esc: close"))
 	case cardAddLabel:
 		b.WriteString(sectionTitle.Render("Add / remove label"))
-		b.WriteString("\n" + divider + "\n\n")
+		b.WriteString("\n" + divider + "\n")
+		b.WriteString(m.pickerFilter.View() + "\n\n")
 		if len(m.boardLabels) == 0 {
 			b.WriteString(helpStyle.Render("Loading...") + "\n")
 		} else {
-			for i, label := range m.boardLabels {
-				cursor := "  "
-				rowStyle := lipgloss.NewStyle()
-				if i == m.labelIndex {
-					cursor = "▸ "
-					rowStyle = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+			filtered := m.filteredLabels()
+			if len(filtered) == 0 {
+				b.WriteString(helpStyle.Render("No matches") + "\n")
+			} else {
+				for i, label := range filtered {
+					cursor := "  "
+					rowStyle := lipgloss.NewStyle()
+					if i == m.labelIndex {
+						cursor = "▸ "
+						rowStyle = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+					}
+					check := "  "
+					if m.isLabelOnCard(label.ID) {
+						check = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓ ")
+					}
+					name := label.Name
+					if name == "" {
+						name = label.Color
+					}
+					colorDot := labelColor(label.Color).Render("●")
+					b.WriteString(cursor + check + colorDot + " " + rowStyle.Render(name) + "\n")
 				}
-				check := "  "
-				if m.isLabelOnCard(label.ID) {
-					check = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓ ")
-				}
-				name := label.Name
-				if name == "" {
-					name = label.Color
-				}
-				colorDot := labelColor(label.Color).Render("●")
-				b.WriteString(cursor + check + colorDot + " " + rowStyle.Render(name) + "\n")
 			}
 		}
 		b.WriteString("\n" + helpStyle.Render("enter/space: toggle  esc: close"))

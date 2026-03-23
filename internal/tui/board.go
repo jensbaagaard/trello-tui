@@ -826,6 +826,18 @@ func renderCard(c trello.Card, width int, selected bool) string {
 	style := cardStyle
 	if selected {
 		style = selectedCardStyle
+	} else if c.Due != "" && !c.DueComplete {
+		for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04:05.000Z", time.RFC3339} {
+			if t, err := time.Parse(layout, c.Due); err == nil {
+				now := timeNow()
+				if t.Before(now) {
+					style = cardStyle.BorderForeground(lipgloss.Color("#EF4444"))
+				} else if t.Before(now.AddDate(0, 0, 7)) {
+					style = cardStyle.BorderForeground(lipgloss.Color("#F59E0B"))
+				}
+				break
+			}
+		}
 	}
 
 	return style.Width(width).Render(content)
