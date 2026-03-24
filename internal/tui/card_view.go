@@ -92,6 +92,44 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 	var b strings.Builder
 
 	switch m.mode {
+	case cardMoveBoard:
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render("Move to board") + "\n")
+		b.WriteString(m.pickerFilter.View() + "\n\n")
+		if len(m.allBoards) == 0 {
+			b.WriteString(helpStyle.Render("Loading..."))
+		} else {
+			filtered := m.filteredBoards()
+			if len(filtered) == 0 {
+				b.WriteString(helpStyle.Render("No matches"))
+			} else {
+				for i, board := range filtered {
+					cursor := "  "
+					s := lipgloss.NewStyle()
+					if i == m.boardIndex {
+						cursor = "▸ "
+						s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+					}
+					b.WriteString(cursor + s.Render(board.Name) + "\n")
+				}
+			}
+		}
+		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:select  esc:back"))
+
+	case cardMoveBoardList:
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render("Move to list on "+m.targetBoard.Name) + "\n\n")
+		for i, l := range m.targetLists {
+			cursor := "  "
+			s := lipgloss.NewStyle()
+			if i == m.targetListIndex {
+				cursor = "▸ "
+				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+			}
+			b.WriteString(cursor + s.Render(l.Name) + "\n")
+		}
+		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:move  esc:back"))
+
 	case cardEditTitle:
 		b.WriteString("Edit title (enter:save  esc:cancel):\n\n")
 		b.WriteString(m.titleEdit.View())
@@ -116,7 +154,7 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 			}
 			b.WriteString(cursor + s.Render(l.Name) + suffix + "\n")
 		}
-		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:move  esc:cancel"))
+		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:move  B:other board  esc:cancel"))
 
 	case cardAddMember:
 		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
@@ -523,6 +561,8 @@ func (m CardModel) helpLine() string {
 	case cardActivityPane:
 		return ""
 	case cardAddComment:
+		return ""
+	case cardMoveBoard, cardMoveBoardList:
 		return ""
 	default:
 		return wrapHelpText("t:title  e:desc  m:move  a:members  l:labels  d:due  c:copy url  -:checklist  A:attach URL  ,/.:move lr  tab:next pane  esc:back", m.width-2)

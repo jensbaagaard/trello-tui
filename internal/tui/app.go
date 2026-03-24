@@ -67,6 +67,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.moveCardInBoard(msg.Card, msg.FromListID, msg.ToListID)
 		}
 
+	case CardMovedToBoardMsg:
+		if msg.Err == nil && m.screen == screenCard {
+			m.board.removeCardFromList(msg.FromListID, msg.Card.ID)
+			m.board.statusMsg = m.card.statusMsg
+			m.screen = screenBoard
+			return m, nil
+		}
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":

@@ -33,6 +33,8 @@ const (
 	cardAddAttachment
 	cardConfirmDeleteChecklist
 	cardConfirmDeleteAttachment
+	cardMoveBoard
+	cardMoveBoardList
 )
 
 type checkRef struct{ cl, it int }
@@ -58,8 +60,13 @@ type CardModel struct {
 	labelColorIdx  int
 	commentInput    textarea.Model
 	checklistInput  textinput.Model
-	moveIndex    int
-	memberIndex  int
+	moveIndex       int
+	memberIndex     int
+	allBoards       []trello.Board
+	boardIndex      int
+	targetBoard     trello.Board
+	targetLists     []trello.List
+	targetListIndex int
 	labelIndex   int
 	checkItemIdx  int
 	attachmentIdx int
@@ -357,6 +364,50 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		}
 		return m, nil
 
+	case AllBoardsFetchedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error fetching boards: %v", msg.Err)
+			m.mode = cardMoveList
+			return m, nil
+		}
+		var filtered []trello.Board
+		for _, b := range msg.Boards {
+			if b.ID != m.boardID {
+				filtered = append(filtered, b)
+			}
+		}
+		m.allBoards = filtered
+		if len(filtered) == 0 {
+			m.statusMsg = "No other boards"
+			m.mode = cardMoveList
+		}
+		return m, nil
+
+	case TargetBoardListsFetchedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error fetching lists: %v", msg.Err)
+			m.mode = cardMoveBoard
+			return m, nil
+		}
+		m.targetLists = msg.Lists
+		if len(msg.Lists) == 0 {
+			m.statusMsg = "No lists on that board"
+			m.mode = cardMoveBoard
+			return m, nil
+		}
+		m.targetListIndex = 0
+		m.mode = cardMoveBoardList
+		return m, nil
+
+	case CardMovedToBoardMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error moving card: %v", msg.Err)
+			m.mode = cardView
+			return m, nil
+		}
+		m.statusMsg = fmt.Sprintf("Card moved to %s", m.targetBoard.Name)
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -375,7 +426,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		var cmd tea.Cmd
 		m.dueInput, cmd = m.dueInput.Update(msg)
 		return m, cmd
-	case cardAddMember, cardAddLabel:
+	case cardAddMember, cardAddLabel, cardMoveBoard:
 		var cmd tea.Cmd
 		m.pickerFilter, cmd = m.pickerFilter.Update(msg)
 		return m, cmd
@@ -500,6 +551,41 @@ func (m CardModel) fetchActions() tea.Cmd {
 	}
 }
 
+func (m CardModel) fetchAllBoards() tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		boards, err := client.GetBoards()
+		return AllBoardsFetchedMsg{Boards: boards, Err: err}
+	}
+}
+
+func (m CardModel) fetchTargetBoardLists() tea.Cmd {
+	client := m.client
+	boardID := m.targetBoard.ID
+	return func() tea.Msg {
+		lists, err := client.GetLists(boardID)
+		return TargetBoardListsFetchedMsg{Lists: lists, Err: err}
+	}
+}
+
+func (m CardModel) moveToBoard(targetBoardID, targetListID string) tea.Cmd {
+	client := m.client
+	cardID := m.card.ID
+	fromListID := m.card.IDList
+	fromBoardID := m.boardID
+	return func() tea.Msg {
+		card, err := client.MoveCardToBoard(cardID, targetBoardID, targetListID)
+		return CardMovedToBoardMsg{
+			Card:        card,
+			FromListID:  fromListID,
+			FromBoardID: fromBoardID,
+			ToBoardID:   targetBoardID,
+			ToListID:    targetListID,
+			Err:         err,
+		}
+	}
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 func (m CardModel) allCheckItemRefs() []checkRef {
@@ -537,6 +623,20 @@ func (m CardModel) filteredLabels() []trello.Label {
 		if strings.Contains(strings.ToLower(label.Name), q) ||
 			strings.Contains(strings.ToLower(label.Color), q) {
 			result = append(result, label)
+		}
+	}
+	return result
+}
+
+func (m CardModel) filteredBoards() []trello.Board {
+	q := strings.ToLower(m.pickerFilter.Value())
+	if q == "" {
+		return m.allBoards
+	}
+	var result []trello.Board
+	for _, b := range m.allBoards {
+		if strings.Contains(strings.ToLower(b.Name), q) {
+			result = append(result, b)
 		}
 	}
 	return result

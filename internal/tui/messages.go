@@ -150,6 +150,25 @@ type CardRestoredMsg struct {
 	Err  error
 }
 
+type AllBoardsFetchedMsg struct {
+	Boards []trello.Board
+	Err    error
+}
+
+type TargetBoardListsFetchedMsg struct {
+	Lists []trello.List
+	Err   error
+}
+
+type CardMovedToBoardMsg struct {
+	Card        trello.Card
+	FromListID  string
+	FromBoardID string
+	ToBoardID   string
+	ToListID    string
+	Err         error
+}
+
 type VersionCheckMsg struct {
 	UpdateNotice string
 }

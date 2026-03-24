@@ -127,6 +127,10 @@ func (c *Client) MoveCard(cardID, listID string) (Card, error) {
 	return c.UpdateCard(cardID, map[string]string{"idList": listID})
 }
 
+func (c *Client) MoveCardToBoard(cardID, boardID, listID string) (Card, error) {
+	return c.UpdateCard(cardID, map[string]string{"idBoard": boardID, "idList": listID})
+}
+
 func (c *Client) ArchiveCard(cardID string) error {
 	return c.request("PUT", fmt.Sprintf("/cards/%s", cardID), map[string]string{
 		"closed": "true",

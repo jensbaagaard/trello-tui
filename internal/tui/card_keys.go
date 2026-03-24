@@ -58,9 +58,73 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				return m, m.moveToList(m.moveIndex)
 			}
 			m.mode = cardView
+		case "B":
+			m.mode = cardMoveBoard
+			m.boardIndex = 0
+			m.pickerFilter.SetValue("")
+			m.pickerFilter.Focus()
+			if len(m.allBoards) == 0 {
+				return m, tea.Batch(textinput.Blink, m.fetchAllBoards())
+			}
+			return m, textinput.Blink
 		case "esc":
 			m.moveIndex = m.listIndex
 			m.mode = cardView
+		}
+		return m, nil
+
+	case cardMoveBoard:
+		switch msg.String() {
+		case "j", "down":
+			filtered := m.filteredBoards()
+			if m.boardIndex < len(filtered)-1 {
+				m.boardIndex++
+			}
+		case "k", "up":
+			if m.boardIndex > 0 {
+				m.boardIndex--
+			}
+		case "enter":
+			filtered := m.filteredBoards()
+			if len(filtered) > 0 && m.boardIndex < len(filtered) {
+				m.targetBoard = filtered[m.boardIndex]
+				m.statusMsg = "Loading lists..."
+				return m, m.fetchTargetBoardLists()
+			}
+		case "esc":
+			m.mode = cardMoveList
+			m.pickerFilter.SetValue("")
+		default:
+			prev := m.pickerFilter.Value()
+			var cmd tea.Cmd
+			m.pickerFilter, cmd = m.pickerFilter.Update(msg)
+			if m.pickerFilter.Value() != prev {
+				m.boardIndex = 0
+			}
+			return m, cmd
+		}
+		return m, nil
+
+	case cardMoveBoardList:
+		switch msg.String() {
+		case "j", "down":
+			if m.targetListIndex < len(m.targetLists)-1 {
+				m.targetListIndex++
+			}
+		case "k", "up":
+			if m.targetListIndex > 0 {
+				m.targetListIndex--
+			}
+		case "enter":
+			if len(m.targetLists) > 0 && m.targetListIndex < len(m.targetLists) {
+				targetList := m.targetLists[m.targetListIndex]
+				return m, m.moveToBoard(m.targetBoard.ID, targetList.ID)
+			}
+		case "esc":
+			m.mode = cardMoveBoard
+			m.pickerFilter.SetValue("")
+			m.pickerFilter.Focus()
+			return m, textinput.Blink
 		}
 		return m, nil
 
