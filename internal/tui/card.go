@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ const (
 	cardAddLabel
 	cardSetDue
 	cardChecklistPane
+	cardAttachmentsPane
 	cardActivityPane
 	cardAddComment
 )
@@ -39,6 +41,7 @@ type CardModel struct {
 	boardMembers []trello.Member
 	boardLabels  []trello.Label
 	checklists   []trello.Checklist
+	attachments  []trello.Attachment
 	actions      []trello.Action
 	mode         cardMode
 	titleEdit    textinput.Model
@@ -49,15 +52,18 @@ type CardModel struct {
 	moveIndex    int
 	memberIndex  int
 	labelIndex   int
-	checkItemIdx int
-	activityIdx  int
-	infoScroll   int
-	clScroll     int
-	actScroll    int
+	checkItemIdx  int
+	attachmentIdx int
+	activityIdx   int
+	infoScroll    int
+	clScroll      int
+	attScroll     int
+	actScroll     int
 	width        int
 	height       int
 	statusMsg    string
 	loadingCL    bool
+	loadingAtt   bool
 	loadingCom   bool
 }
 
@@ -107,12 +113,13 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 		pickerFilter: pf,
 		commentInput: ci,
 		loadingCL:    true,
+		loadingAtt:   true,
 		loadingCom:   true,
 	}
 }
 
 func (m CardModel) Init() tea.Cmd {
-	return tea.Batch(m.fetchChecklists(), m.fetchActions())
+	return tea.Batch(m.fetchChecklists(), m.fetchAttachments(), m.fetchActions())
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
@@ -200,6 +207,21 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 			return m, nil
 		}
 		m.checklists = msg.Checklists
+		return m, nil
+
+	case AttachmentsFetchedMsg:
+		m.loadingAtt = false
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error fetching attachments: %v", msg.Err)
+			return m, nil
+		}
+		m.attachments = msg.Attachments
+		return m, nil
+
+	case AttachmentOpenedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error opening attachment: %v", msg.Err)
+		}
 		return m, nil
 
 	case ActionsFetchedMsg:
@@ -458,9 +480,36 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			}
 		case "tab":
 			m.clScroll = 0
-			m.mode = cardActivityPane
+			if len(m.attachments) > 0 {
+				m.mode = cardAttachmentsPane
+			} else {
+				m.mode = cardActivityPane
+			}
 		case "esc":
 			m.clScroll = 0
+			m.mode = cardView
+		}
+		return m, nil
+
+	case cardAttachmentsPane:
+		switch msg.String() {
+		case "j", "down":
+			if m.attachmentIdx < len(m.attachments)-1 {
+				m.attachmentIdx++
+			}
+		case "k", "up":
+			if m.attachmentIdx > 0 {
+				m.attachmentIdx--
+			}
+		case "o", "enter":
+			if len(m.attachments) > 0 && m.attachmentIdx < len(m.attachments) {
+				return m, m.openAttachment(m.attachments[m.attachmentIdx])
+			}
+		case "tab":
+			m.attScroll = 0
+			m.mode = cardActivityPane
+		case "esc":
+			m.attScroll = 0
 			m.mode = cardView
 		}
 		return m, nil
@@ -525,6 +574,8 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			m.infoScroll = 0
 			if len(m.checklists) > 0 {
 				m.mode = cardChecklistPane
+			} else if len(m.attachments) > 0 {
+				m.mode = cardAttachmentsPane
 			} else {
 				m.mode = cardActivityPane
 			}
@@ -542,10 +593,14 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				available = 24
 			}
 			showChecklist := m.loadingCL || len(m.checklists) > 0
+			showAtt := len(m.attachments) > 0
 			var pane1H int
-			if showChecklist {
+			switch {
+			case showChecklist && showAtt:
+				pane1H = available * 35 / 100
+			case showChecklist || showAtt:
 				pane1H = available * 40 / 100
-			} else {
+			default:
 				pane1H = available * 55 / 100
 			}
 			if pane1H < 9 {
@@ -672,6 +727,28 @@ func (m CardModel) fetchChecklists() tea.Cmd {
 	}
 }
 
+func (m CardModel) fetchAttachments() tea.Cmd {
+	client := m.client
+	cardID := m.card.ID
+	return func() tea.Msg {
+		att, err := client.GetAttachments(cardID)
+		return AttachmentsFetchedMsg{Attachments: att, Err: err}
+	}
+}
+
+func (m CardModel) openAttachment(att trello.Attachment) tea.Cmd {
+	client := m.client
+	cardID := m.card.ID
+	return func() tea.Msg {
+		path, err := client.DownloadAttachment(cardID, att)
+		if err != nil {
+			return AttachmentOpenedMsg{Err: err}
+		}
+		err = exec.Command("open", path).Start()
+		return AttachmentOpenedMsg{Err: err}
+	}
+}
+
 func (m CardModel) fetchActions() tea.Cmd {
 	client := m.client
 	cardID := m.card.ID
@@ -762,51 +839,66 @@ func (m CardModel) View() string {
 	}
 
 	showChecklist := m.loadingCL || len(m.checklists) > 0
+	showAttachments := len(m.attachments) > 0
 
-	// Layout: box1 \n [box2 \n] box3 \n statusBar
-	// Overhead: 3 newlines + 1 status line = 4 rows with checklist, 3 rows without
-	var pane1H, pane2H, pane3H int
+	paneCount := 2 // info + activity always
 	if showChecklist {
-		pane1H = available * 40 / 100
-		pane2H = available * 30 / 100
-		pane3H = available - pane1H - pane2H - 4
-		if pane1H < 9 {
-			pane1H = 9
-		}
-		if pane2H < 6 {
-			pane2H = 6
-		}
-		if pane3H < 6 {
-			pane3H = 6
-		}
-	} else {
-		pane1H = available * 55 / 100
-		pane3H = available - pane1H - 3
-		if pane1H < 9 {
-			pane1H = 9
-		}
-		if pane3H < 6 {
-			pane3H = 6
-		}
+		paneCount++
+	}
+	if showAttachments {
+		paneCount++
+	}
+
+	// overhead: paneCount newlines between panes + 1 status line
+	overhead := paneCount + 1
+	usable := available - overhead
+
+	var pane1H, pane2H, paneAttH, paneActH int
+	switch {
+	case showChecklist && showAttachments:
+		pane1H = usable * 35 / 100
+		pane2H = usable * 25 / 100
+		paneAttH = usable * 20 / 100
+		paneActH = usable - pane1H - pane2H - paneAttH
+	case showChecklist:
+		pane1H = usable * 40 / 100
+		pane2H = usable * 30 / 100
+		paneActH = usable - pane1H - pane2H
+	case showAttachments:
+		pane1H = usable * 45 / 100
+		paneAttH = usable * 25 / 100
+		paneActH = usable - pane1H - paneAttH
+	default:
+		pane1H = usable * 55 / 100
+		paneActH = usable - pane1H
+	}
+	if pane1H < 9 {
+		pane1H = 9
+	}
+	if pane2H > 0 && pane2H < 6 {
+		pane2H = 6
+	}
+	if paneAttH > 0 && paneAttH < 6 {
+		paneAttH = 6
+	}
+	if paneActH < 6 {
+		paneActH = 6
 	}
 
 	box1 := m.renderInfoPane(w, pane1H, m.infoScroll)
-	var box2 string
-	if showChecklist {
-		box2 = m.renderChecklistPane(w, pane2H, m.checkItemIdx)
-	}
-	box3 := m.renderActivityPane(w, pane3H, m.activityIdx)
-
 	body := box1
-	if box2 != "" {
-		body += "\n" + box2
+	if showChecklist {
+		body += "\n" + m.renderChecklistPane(w, pane2H, m.checkItemIdx)
 	}
-	body += "\n" + box3 + "\n" + statusBar
+	if showAttachments {
+		body += "\n" + m.renderAttachmentsPane(w, paneAttH, m.attachmentIdx)
+	}
+	body += "\n" + m.renderActivityPane(w, paneActH, m.activityIdx) + "\n" + statusBar
 	return lipgloss.NewStyle().Padding(0, 1).Render(body)
 }
 
 func (m CardModel) renderInfoPane(width, height, scroll int) string {
-	active := m.mode != cardChecklistPane && m.mode != cardActivityPane && m.mode != cardAddComment
+	active := m.mode != cardChecklistPane && m.mode != cardAttachmentsPane && m.mode != cardActivityPane && m.mode != cardAddComment
 
 	var b strings.Builder
 
@@ -1018,6 +1110,50 @@ func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 	return paneBox(title, b.String(), width, height, active, scroll)
 }
 
+func (m CardModel) renderAttachmentsPane(width, height, cursorIdx int) string {
+	active := m.mode == cardAttachmentsPane
+	var b strings.Builder
+
+	if m.loadingAtt {
+		b.WriteString(helpStyle.Render("Loading..."))
+	} else if len(m.attachments) == 0 {
+		b.WriteString(helpStyle.Render("(no attachments)"))
+	} else {
+		for i, att := range m.attachments {
+			cursor := "  "
+			s := lipgloss.NewStyle()
+			if active && i == m.attachmentIdx {
+				cursor = "▸ "
+				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+			}
+			size := formatBytes(att.Bytes)
+			b.WriteString(cursor + s.Render(att.Name) + helpStyle.Render("  "+size) + "\n")
+		}
+	}
+
+	title := "Attachments"
+	if active {
+		title += helpStyle.Render("  j/k:navigate  o:open  tab:next  esc:back")
+	}
+	availLines := (height - 2) - 2
+	if availLines < 1 {
+		availLines = 1
+	}
+	scroll := clampScroll(cursorIdx, availLines)
+	return paneBox(title, b.String(), width, height, active, scroll)
+}
+
+func formatBytes(b int) string {
+	switch {
+	case b >= 1024*1024:
+		return fmt.Sprintf("%.1f MB", float64(b)/1024/1024)
+	case b >= 1024:
+		return fmt.Sprintf("%.1f KB", float64(b)/1024)
+	default:
+		return fmt.Sprintf("%d B", b)
+	}
+}
+
 func (m CardModel) renderActivityPane(width, height, cursorIdx int) string {
 	active := m.mode == cardActivityPane || m.mode == cardAddComment
 	var b strings.Builder
@@ -1148,6 +1284,8 @@ func clampScroll(cursorLine, visibleLines int) int {
 func (m CardModel) helpLine() string {
 	switch m.mode {
 	case cardChecklistPane:
+		return ""
+	case cardAttachmentsPane:
 		return ""
 	case cardActivityPane:
 		return ""

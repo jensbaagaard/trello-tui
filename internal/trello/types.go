@@ -52,6 +52,16 @@ type Checklist struct {
 	CheckItems []CheckItem `json:"checkItems"`
 }
 
+type Attachment struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	MimeType string `json:"mimeType"`
+	Bytes    int    `json:"bytes"`
+	Date     string `json:"date"`
+	IsUpload bool   `json:"isUpload"`
+}
+
 type CommentData struct {
 	Text string `json:"text"`
 }

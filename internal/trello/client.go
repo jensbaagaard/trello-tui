@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 )
 
 type Client struct {
@@ -179,6 +181,52 @@ func (c *Client) ToggleCheckItem(cardID, checkItemID string, complete bool) erro
 	}
 	return c.request("PUT", fmt.Sprintf("/cards/%s/checkItem/%s", cardID, checkItemID),
 		map[string]string{"state": state}, nil)
+}
+
+func (c *Client) GetAttachments(cardID string) ([]Attachment, error) {
+	var attachments []Attachment
+	err := c.get(fmt.Sprintf("/cards/%s/attachments", cardID), nil, &attachments)
+	return attachments, err
+}
+
+func (c *Client) DownloadAttachment(cardID string, att Attachment) (string, error) {
+	if !att.IsUpload {
+		return att.URL, nil
+	}
+
+	u := fmt.Sprintf("%s/cards/%s/attachments/%s/download/%s",
+		c.baseURL, cardID, att.ID, att.Name)
+
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating download request: %w", err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf(
+		`OAuth oauth_consumer_key="%s", oauth_token="%s"`,
+		c.apiKey, c.token))
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("downloading attachment: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("download error %d: %s", resp.StatusCode, string(body))
+	}
+
+	ext := filepath.Ext(att.Name)
+	tmp, err := os.CreateTemp("", "trello-att-*"+ext)
+	if err != nil {
+		return "", fmt.Errorf("creating temp file: %w", err)
+	}
+	defer tmp.Close()
+
+	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		return "", fmt.Errorf("writing temp file: %w", err)
+	}
+	return tmp.Name(), nil
 }
 
 func (c *Client) AddComment(cardID, text string) (Action, error) {

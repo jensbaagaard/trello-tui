@@ -261,3 +261,167 @@ func TestCardViewNoDescription(t *testing.T) {
 		t.Error("view should show 'no description' placeholder")
 	}
 }
+
+func TestAttachmentsFetchedMsg(t *testing.T) {
+	m := newTestCardModel()
+	m.loadingAtt = true
+
+	attachments := []trello.Attachment{
+		{ID: "a1", Name: "file.pdf", Bytes: 1024, IsUpload: true},
+		{ID: "a2", Name: "link", Bytes: 0, IsUpload: false},
+	}
+
+	updated, _ := m.Update(AttachmentsFetchedMsg{Attachments: attachments})
+	if updated.loadingAtt {
+		t.Error("loadingAtt should be false after fetch")
+	}
+	if len(updated.attachments) != 2 {
+		t.Fatalf("len(attachments) = %d, want 2", len(updated.attachments))
+	}
+	if updated.attachments[0].Name != "file.pdf" {
+		t.Errorf("Name = %q, want %q", updated.attachments[0].Name, "file.pdf")
+	}
+}
+
+func TestAttachmentsFetchedError(t *testing.T) {
+	m := newTestCardModel()
+	m.loadingAtt = true
+
+	updated, _ := m.Update(AttachmentsFetchedMsg{Err: fmt.Errorf("network error")})
+	if updated.loadingAtt {
+		t.Error("loadingAtt should be false after error")
+	}
+	if !strings.Contains(updated.statusMsg, "Error fetching attachments") {
+		t.Errorf("statusMsg = %q, want it to contain 'Error fetching attachments'", updated.statusMsg)
+	}
+}
+
+func TestAttachmentsPaneNavigation(t *testing.T) {
+	m := newTestCardModel()
+	m.loadingAtt = false
+	m.attachments = []trello.Attachment{
+		{ID: "a1", Name: "file1.pdf"},
+		{ID: "a2", Name: "file2.png"},
+		{ID: "a3", Name: "file3.txt"},
+	}
+	m.mode = cardAttachmentsPane
+
+	// j moves down
+	updated, _ := m.Update(key("j"))
+	if updated.attachmentIdx != 1 {
+		t.Errorf("after j: attachmentIdx = %d, want 1", updated.attachmentIdx)
+	}
+
+	// j again
+	updated, _ = updated.Update(key("j"))
+	if updated.attachmentIdx != 2 {
+		t.Errorf("after j j: attachmentIdx = %d, want 2", updated.attachmentIdx)
+	}
+
+	// j at end stays
+	updated, _ = updated.Update(key("j"))
+	if updated.attachmentIdx != 2 {
+		t.Errorf("after j at end: attachmentIdx = %d, want 2", updated.attachmentIdx)
+	}
+
+	// k moves up
+	updated, _ = updated.Update(key("k"))
+	if updated.attachmentIdx != 1 {
+		t.Errorf("after k: attachmentIdx = %d, want 1", updated.attachmentIdx)
+	}
+
+	// esc returns to card view
+	updated, _ = updated.Update(specialKey(tea.KeyEsc))
+	if updated.mode != cardView {
+		t.Errorf("after esc: mode = %d, want cardView", updated.mode)
+	}
+}
+
+func TestAttachmentsPaneTabCycling(t *testing.T) {
+	m := newTestCardModel()
+	m.loadingAtt = false
+	m.loadingCL = false
+	m.attachments = []trello.Attachment{
+		{ID: "a1", Name: "file.pdf"},
+	}
+	m.checklists = []trello.Checklist{
+		{ID: "cl1", Name: "Checklist", CheckItems: []trello.CheckItem{{ID: "ci1", Name: "Item"}}},
+	}
+
+	// Info → tab → Checklist (has checklists)
+	updated, _ := m.Update(specialKey(tea.KeyTab))
+	if updated.mode != cardChecklistPane {
+		t.Errorf("from info: mode = %d, want cardChecklistPane", updated.mode)
+	}
+
+	// Checklist → tab → Attachments (has attachments)
+	updated, _ = updated.Update(specialKey(tea.KeyTab))
+	if updated.mode != cardAttachmentsPane {
+		t.Errorf("from checklist: mode = %d, want cardAttachmentsPane", updated.mode)
+	}
+
+	// Attachments → tab → Activity
+	updated, _ = updated.Update(specialKey(tea.KeyTab))
+	if updated.mode != cardActivityPane {
+		t.Errorf("from attachments: mode = %d, want cardActivityPane", updated.mode)
+	}
+
+	// Activity → tab → Info (cardView)
+	updated, _ = updated.Update(specialKey(tea.KeyTab))
+	if updated.mode != cardView {
+		t.Errorf("from activity: mode = %d, want cardView", updated.mode)
+	}
+}
+
+func TestTabCyclingSkipsEmptyAttachments(t *testing.T) {
+	m := newTestCardModel()
+	m.loadingAtt = false
+	m.loadingCL = false
+	m.attachments = nil
+	m.checklists = []trello.Checklist{
+		{ID: "cl1", Name: "Checklist", CheckItems: []trello.CheckItem{{ID: "ci1", Name: "Item"}}},
+	}
+
+	// Info → tab → Checklist
+	updated, _ := m.Update(specialKey(tea.KeyTab))
+	if updated.mode != cardChecklistPane {
+		t.Errorf("from info: mode = %d, want cardChecklistPane", updated.mode)
+	}
+
+	// Checklist → tab → Activity (skip attachments since empty)
+	updated, _ = updated.Update(specialKey(tea.KeyTab))
+	if updated.mode != cardActivityPane {
+		t.Errorf("from checklist: mode = %d, want cardActivityPane (skip empty attachments)", updated.mode)
+	}
+}
+
+func TestAttachmentsPaneRendering(t *testing.T) {
+	m := newTestCardModel()
+	m.width = 80
+	m.height = 50
+	m.loadingAtt = false
+	m.loadingCL = false
+	m.attachments = []trello.Attachment{
+		{ID: "a1", Name: "report.pdf", Bytes: 1048576},
+		{ID: "a2", Name: "image.png", Bytes: 2048},
+	}
+
+	v := m.View()
+	if !strings.Contains(v, "Attachments") {
+		t.Error("view should contain 'Attachments' pane title")
+	}
+	if !strings.Contains(v, "report.pdf") {
+		t.Error("view should contain attachment name 'report.pdf'")
+	}
+	if !strings.Contains(v, "image.png") {
+		t.Error("view should contain attachment name 'image.png'")
+	}
+}
+
+func TestAttachmentOpenedError(t *testing.T) {
+	m := newTestCardModel()
+	updated, _ := m.Update(AttachmentOpenedMsg{Err: fmt.Errorf("open failed")})
+	if !strings.Contains(updated.statusMsg, "Error opening attachment") {
+		t.Errorf("statusMsg = %q, want it to contain 'Error opening attachment'", updated.statusMsg)
+	}
+}

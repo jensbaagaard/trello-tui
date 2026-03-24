@@ -77,6 +77,15 @@ type ActionsFetchedMsg struct {
 	Err     error
 }
 
+type AttachmentsFetchedMsg struct {
+	Attachments []trello.Attachment
+	Err         error
+}
+
+type AttachmentOpenedMsg struct {
+	Err error
+}
+
 type CheckItemToggledMsg struct {
 	Err error
 }

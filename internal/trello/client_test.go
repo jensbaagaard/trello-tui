@@ -223,3 +223,94 @@ func TestAuthParams(t *testing.T) {
 
 	c.GetBoards()
 }
+
+func TestGetAttachments(t *testing.T) {
+	attachments := []Attachment{
+		{ID: "a1", Name: "screenshot.png", URL: "https://trello.com/att/1", MimeType: "image/png", Bytes: 2048, IsUpload: true},
+		{ID: "a2", Name: "link", URL: "https://example.com", MimeType: "", Bytes: 0, IsUpload: false},
+	}
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s, want GET", r.Method)
+		}
+		if !strings.HasPrefix(r.URL.Path, "/cards/c1/attachments") {
+			t.Errorf("path = %s, want /cards/c1/attachments", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(attachments)
+	}))
+	defer srv.Close()
+
+	got, err := c.GetAttachments("c1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2", len(got))
+	}
+	if got[0].Name != "screenshot.png" {
+		t.Errorf("Name = %q, want %q", got[0].Name, "screenshot.png")
+	}
+	if !got[0].IsUpload {
+		t.Error("expected IsUpload = true for first attachment")
+	}
+	if got[1].IsUpload {
+		t.Error("expected IsUpload = false for second attachment")
+	}
+}
+
+func TestDownloadAttachmentExternalLink(t *testing.T) {
+	c := NewClient("test-key", "test-token")
+	att := Attachment{
+		ID:       "a1",
+		Name:     "link",
+		URL:      "https://example.com/doc",
+		IsUpload: false,
+	}
+
+	path, err := c.DownloadAttachment("c1", att)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "https://example.com/doc" {
+		t.Errorf("path = %q, want %q", path, "https://example.com/doc")
+	}
+}
+
+func TestDownloadAttachmentUpload(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s, want GET", r.Method)
+		}
+		expectedPath := "/cards/c1/attachments/a1/download/image.png"
+		if r.URL.Path != expectedPath {
+			t.Errorf("path = %s, want %s", r.URL.Path, expectedPath)
+		}
+		auth := r.Header.Get("Authorization")
+		if !strings.Contains(auth, "oauth_consumer_key") {
+			t.Error("expected OAuth Authorization header")
+		}
+		if !strings.Contains(auth, "test-key") {
+			t.Errorf("auth header missing api key: %s", auth)
+		}
+		if !strings.Contains(auth, "test-token") {
+			t.Errorf("auth header missing token: %s", auth)
+		}
+		w.Write([]byte("fake image data"))
+	}))
+	defer srv.Close()
+
+	att := Attachment{
+		ID:       "a1",
+		Name:     "image.png",
+		URL:      srv.URL + "/some-s3-url",
+		IsUpload: true,
+	}
+
+	path, err := c.DownloadAttachment("c1", att)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasSuffix(path, ".png") {
+		t.Errorf("path = %q, want it to end with .png", path)
+	}
+}
