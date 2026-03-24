@@ -29,6 +29,9 @@ const (
 	cardAttachmentsPane
 	cardActivityPane
 	cardAddComment
+	cardAddChecklist
+	cardAddCheckItem
+	cardAddAttachment
 )
 
 type checkRef struct{ cl, it int }
@@ -52,7 +55,8 @@ type CardModel struct {
 	pickerFilter   textinput.Model
 	labelNameInput textinput.Model
 	labelColorIdx  int
-	commentInput   textarea.Model
+	commentInput    textarea.Model
+	checklistInput  textinput.Model
 	moveIndex    int
 	memberIndex  int
 	labelIndex   int
@@ -98,6 +102,10 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 	ci.SetWidth(60)
 	ci.SetHeight(4)
 
+	cli := textinput.New()
+	cli.Placeholder = "Name..."
+	cli.CharLimit = 200
+
 	listName := ""
 	if listIndex >= 0 && listIndex < len(lists) {
 		listName = lists[listIndex].Name
@@ -120,7 +128,8 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 		dueInput:       di,
 		pickerFilter:   pf,
 		labelNameInput: ln,
-		commentInput:   ci,
+		commentInput:    ci,
+		checklistInput:  cli,
 		loadingCL:    true,
 		loadingAtt:   true,
 		loadingCom:   true,
@@ -275,6 +284,39 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		m.statusMsg = "Comment added"
 		return m, nil
 
+	case ChecklistCreatedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
+			return m, nil
+		}
+		m.checklists = append(m.checklists, msg.Checklist)
+		m.mode = cardChecklistPane
+		m.statusMsg = "Checklist created"
+		return m, nil
+
+	case CheckItemCreatedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
+			return m, nil
+		}
+		for i, cl := range m.checklists {
+			if cl.ID == msg.ChecklistID {
+				m.checklists[i].CheckItems = append(m.checklists[i].CheckItems, msg.CheckItem)
+				break
+			}
+		}
+		m.statusMsg = "Item added"
+		return m, nil
+
+	case AttachmentAddedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
+			return m, nil
+		}
+		m.attachments = append(m.attachments, msg.Attachment)
+		m.statusMsg = "Attachment added"
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -304,6 +346,10 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 	case cardAddComment:
 		var cmd tea.Cmd
 		m.commentInput, cmd = m.commentInput.Update(msg)
+		return m, cmd
+	case cardAddChecklist, cardAddCheckItem, cardAddAttachment:
+		var cmd tea.Cmd
+		m.checklistInput, cmd = m.checklistInput.Update(msg)
 		return m, cmd
 	}
 	return m, nil
@@ -558,6 +604,20 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 					return CheckItemToggledMsg{Err: client.ToggleCheckItem(cardID, checkItemID, newComplete)}
 				}
 			}
+		case "n":
+			if len(m.checklists) > 0 {
+				m.mode = cardAddCheckItem
+				m.checklistInput.Placeholder = "Item name..."
+				m.checklistInput.SetValue("")
+				m.checklistInput.Focus()
+				return m, textinput.Blink
+			}
+		case "-", "N":
+			m.mode = cardAddChecklist
+			m.checklistInput.Placeholder = "Checklist name..."
+			m.checklistInput.SetValue("")
+			m.checklistInput.Focus()
+			return m, textinput.Blink
 		case "tab":
 			m.clScroll = 0
 			if len(m.attachments) > 0 {
@@ -585,6 +645,12 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			if len(m.attachments) > 0 && m.attachmentIdx < len(m.attachments) {
 				return m, m.openAttachment(m.attachments[m.attachmentIdx])
 			}
+		case "a":
+			m.mode = cardAddAttachment
+			m.checklistInput.Placeholder = "URL..."
+			m.checklistInput.SetValue("")
+			m.checklistInput.Focus()
+			return m, textinput.Blink
 		case "tab":
 			m.attScroll = 0
 			m.mode = cardActivityPane
@@ -638,6 +704,91 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 		default:
 			var cmd tea.Cmd
 			m.commentInput, cmd = m.commentInput.Update(msg)
+			return m, cmd
+		}
+		return m, nil
+
+	case cardAddChecklist:
+		switch msg.String() {
+		case "enter":
+			name := strings.TrimSpace(m.checklistInput.Value())
+			if name == "" {
+				m.mode = cardView
+				return m, nil
+			}
+			m.mode = cardView
+			client := m.client
+			cardID := m.card.ID
+			return m, func() tea.Msg {
+				cl, err := client.CreateChecklist(cardID, name)
+				return ChecklistCreatedMsg{Checklist: cl, Err: err}
+			}
+		case "esc":
+			m.mode = cardView
+			if len(m.checklists) > 0 {
+				m.mode = cardChecklistPane
+			}
+		default:
+			var cmd tea.Cmd
+			m.checklistInput, cmd = m.checklistInput.Update(msg)
+			return m, cmd
+		}
+		return m, nil
+
+	case cardAddCheckItem:
+		switch msg.String() {
+		case "enter":
+			name := strings.TrimSpace(m.checklistInput.Value())
+			if name == "" {
+				m.mode = cardChecklistPane
+				return m, nil
+			}
+			refs := m.allCheckItemRefs()
+			var checklistID string
+			if len(refs) > 0 && m.checkItemIdx < len(refs) {
+				checklistID = m.checklists[refs[m.checkItemIdx].cl].ID
+			} else if len(m.checklists) > 0 {
+				checklistID = m.checklists[len(m.checklists)-1].ID
+			}
+			m.mode = cardChecklistPane
+			client := m.client
+			return m, func() tea.Msg {
+				item, err := client.CreateCheckItem(checklistID, name)
+				return CheckItemCreatedMsg{ChecklistID: checklistID, CheckItem: item, Err: err}
+			}
+		case "esc":
+			m.mode = cardChecklistPane
+		default:
+			var cmd tea.Cmd
+			m.checklistInput, cmd = m.checklistInput.Update(msg)
+			return m, cmd
+		}
+		return m, nil
+
+	case cardAddAttachment:
+		backMode := cardView
+		if len(m.attachments) > 0 {
+			backMode = cardAttachmentsPane
+		}
+		switch msg.String() {
+		case "enter":
+			urlVal := strings.TrimSpace(m.checklistInput.Value())
+			if urlVal == "" {
+				m.mode = backMode
+				return m, nil
+			}
+			m.mode = backMode
+			client := m.client
+			cardID := m.card.ID
+			return m, func() tea.Msg {
+				att, err := client.AddAttachmentURL(cardID, urlVal)
+				return AttachmentAddedMsg{Attachment: att, Err: err}
+			}
+		case "esc":
+			m.mode = backMode
+		default:
+			var cmd tea.Cmd
+			m.checklistInput, cmd = m.checklistInput.Update(msg)
 			return m, cmd
 		}
 		return m, nil
@@ -732,6 +883,18 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			}
 			m.dueInput.SetValue(currentVal)
 			m.dueInput.Focus()
+			return m, textinput.Blink
+		case "-", "N":
+			m.mode = cardAddChecklist
+			m.checklistInput.Placeholder = "Checklist name..."
+			m.checklistInput.SetValue("")
+			m.checklistInput.Focus()
+			return m, textinput.Blink
+		case "A":
+			m.mode = cardAddAttachment
+			m.checklistInput.Placeholder = "URL..."
+			m.checklistInput.SetValue("")
+			m.checklistInput.Focus()
 			return m, textinput.Blink
 		case ",":
 			if m.listIndex > 0 {
@@ -918,8 +1081,8 @@ func (m CardModel) View() string {
 		statusBar = m.helpLine()
 	}
 
-	showChecklist := m.loadingCL || len(m.checklists) > 0
-	showAttachments := len(m.attachments) > 0
+	showChecklist := m.loadingCL || len(m.checklists) > 0 || m.mode == cardAddChecklist || m.mode == cardAddCheckItem
+	showAttachments := len(m.attachments) > 0 || m.mode == cardAddAttachment
 
 	paneCount := 2 // info + activity always
 	if showChecklist {
@@ -929,8 +1092,9 @@ func (m CardModel) View() string {
 		paneCount++
 	}
 
-	// overhead: paneCount newlines between panes + 1 status line
-	overhead := paneCount + 1
+	// overhead: paneCount newlines between panes + status bar lines
+	statusLines := strings.Count(statusBar, "\n") + 1
+	overhead := paneCount + statusLines
 	usable := available - overhead
 
 	var pane1H, pane2H, paneAttH, paneActH int
@@ -978,7 +1142,7 @@ func (m CardModel) View() string {
 }
 
 func (m CardModel) renderInfoPane(width, height, scroll int) string {
-	active := m.mode != cardChecklistPane && m.mode != cardAttachmentsPane && m.mode != cardActivityPane && m.mode != cardAddComment
+	active := m.mode != cardChecklistPane && m.mode != cardAttachmentsPane && m.mode != cardActivityPane && m.mode != cardAddComment && m.mode != cardAddChecklist && m.mode != cardAddCheckItem && m.mode != cardAddAttachment
 
 	var b strings.Builder
 
@@ -1156,10 +1320,16 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 }
 
 func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
-	active := m.mode == cardChecklistPane
+	active := m.mode == cardChecklistPane || m.mode == cardAddChecklist || m.mode == cardAddCheckItem
 	var b strings.Builder
 
-	if m.loadingCL {
+	if m.mode == cardAddChecklist {
+		b.WriteString(helpStyle.Render("New checklist (enter:create  esc:cancel)") + "\n\n")
+		b.WriteString(m.checklistInput.View())
+	} else if m.mode == cardAddCheckItem {
+		b.WriteString(helpStyle.Render("New item (enter:add  esc:cancel)") + "\n\n")
+		b.WriteString(m.checklistInput.View())
+	} else if m.loadingCL {
 		b.WriteString(helpStyle.Render("Loading..."))
 	} else if len(m.checklists) == 0 {
 		b.WriteString(helpStyle.Render("(no checklists)"))
@@ -1183,7 +1353,7 @@ func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 			for _, item := range cl.CheckItems {
 				cursor := "  "
 				itemStyle := lipgloss.NewStyle()
-				if active && flatIdx < len(refs) && m.checkItemIdx == flatIdx {
+				if m.mode == cardChecklistPane && flatIdx < len(refs) && m.checkItemIdx == flatIdx {
 					cursor = "▸ "
 					itemStyle = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
 				}
@@ -1199,8 +1369,8 @@ func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 	}
 
 	title := "Checklist"
-	if active {
-		title += helpStyle.Render("  j/k:navigate  enter:toggle  tab:next  esc:back")
+	if m.mode == cardChecklistPane {
+		title += helpStyle.Render("  j/k:navigate  enter:toggle  n:add item  -:new checklist  tab:next  esc:back")
 	}
 	innerW := width - 4
 	if innerW < 10 {
@@ -1215,10 +1385,13 @@ func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 }
 
 func (m CardModel) renderAttachmentsPane(width, height, cursorIdx int) string {
-	active := m.mode == cardAttachmentsPane
+	active := m.mode == cardAttachmentsPane || m.mode == cardAddAttachment
 	var b strings.Builder
 
-	if m.loadingAtt {
+	if m.mode == cardAddAttachment {
+		b.WriteString(helpStyle.Render("Add URL attachment (enter:add  esc:cancel)") + "\n\n")
+		b.WriteString(m.checklistInput.View())
+	} else if m.loadingAtt {
 		b.WriteString(helpStyle.Render("Loading..."))
 	} else if len(m.attachments) == 0 {
 		b.WriteString(helpStyle.Render("(no attachments)"))
@@ -1226,7 +1399,7 @@ func (m CardModel) renderAttachmentsPane(width, height, cursorIdx int) string {
 		for i, att := range m.attachments {
 			cursor := "  "
 			s := lipgloss.NewStyle()
-			if active && i == m.attachmentIdx {
+			if m.mode == cardAttachmentsPane && i == m.attachmentIdx {
 				cursor = "▸ "
 				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
 			}
@@ -1236,8 +1409,8 @@ func (m CardModel) renderAttachmentsPane(width, height, cursorIdx int) string {
 	}
 
 	title := "Attachments"
-	if active {
-		title += helpStyle.Render("  j/k:navigate  o:open  tab:next  esc:back")
+	if m.mode == cardAttachmentsPane {
+		title += helpStyle.Render("  j/k:navigate  o:open  a:add URL  tab:next  esc:back")
 	}
 	availLines := (height - 2) - 2
 	if availLines < 1 {
@@ -1387,17 +1560,44 @@ func clampScroll(cursorLine, visibleLines int) int {
 
 func (m CardModel) helpLine() string {
 	switch m.mode {
-	case cardChecklistPane:
+	case cardChecklistPane, cardAddChecklist, cardAddCheckItem:
 		return ""
-	case cardAttachmentsPane:
+	case cardAttachmentsPane, cardAddAttachment:
 		return ""
 	case cardActivityPane:
 		return ""
 	case cardAddComment:
 		return ""
 	default:
-		return helpStyle.Render("t:title  e:desc  m:move  a:members  l:labels  d:due  ,/.:move lr  tab:next pane  esc:back")
+		return wrapHelpText("t:title  e:desc  m:move  a:members  l:labels  d:due  -:checklist  A:attach URL  ,/.:move lr  tab:next pane  esc:back", m.width-2)
 	}
+}
+
+func wrapHelpText(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return helpStyle.Render(text)
+	}
+	items := strings.Split(text, "  ")
+	var lines []string
+	cur := ""
+	for _, item := range items {
+		if cur == "" {
+			cur = item
+		} else if len(cur)+2+len(item) <= maxWidth {
+			cur += "  " + item
+		} else {
+			lines = append(lines, cur)
+			cur = item
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	var rendered []string
+	for _, l := range lines {
+		rendered = append(rendered, helpStyle.Render(l))
+	}
+	return strings.Join(rendered, "\n")
 }
 
 // ── paneBox ───────────────────────────────────────────────────────────────────
@@ -1416,13 +1616,17 @@ func paneBox(title, content string, width, height int, active bool, scroll int) 
 		innerW = 10
 	}
 	innerH := height - 2 // subtract top+bottom borders
-	// title takes 1 line + 1 blank line = 2 lines
-	availLines := innerH - 2
+	titleLine := lipgloss.NewStyle().Bold(true).Foreground(titleColor).Render(title)
+	titleLines := lipgloss.Height(titleLine)
+	if titleW := lipgloss.Width(titleLine); titleW > innerW && innerW > 0 {
+		titleLines = (titleW + innerW - 1) / innerW
+	}
+	// title lines + 1 blank line
+	availLines := innerH - titleLines - 1
 	if availLines < 1 {
 		availLines = 1
 	}
 	content = scrollLines(content, scroll, availLines, innerW)
-	titleLine := lipgloss.NewStyle().Bold(true).Foreground(titleColor).Render(title)
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).

@@ -9,8 +9,8 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 - **Card management** — create, edit, archive, and move cards between lists
 - **Card detail view** with multiple panes:
   - Info (title, description, labels, members, due date, URL)
-  - Checklists with interactive toggle
-  - Attachments with system viewer integration
+  - Checklists with interactive toggle, create new checklists and items
+  - Attachments with system viewer integration and URL attachment support
   - Activity feed with interlaced comments
 - **Label management** — create, edit, and delete board labels; create labels inline from the card picker
 - **Inline editing** — title, description, due date, members, and labels
@@ -18,7 +18,7 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 - **Card filtering** — search across titles, descriptions, members, labels, and due dates
 - **Visual indicators** — color-coded labels, member initials, due date warnings, checklist progress
 - **Version checking** — notifies you when a newer release is available
-- **Keyboard-driven** — no mouse needed
+- **Keyboard-driven** — Trello-compatible hotkeys, no mouse needed
 
 ## Prerequisites
 
@@ -107,15 +107,19 @@ trello-tui
 
 #### Card Detail
 
+Keys marked with `*` match Trello's native shortcuts.
+
 | Key       | Action                    |
 | --------- | ------------------------- |
-| `t`       | Edit title                |
-| `e`       | Edit description          |
+| `t`       | Edit title `*`            |
+| `e`       | Edit description `*`      |
 | `m`       | Move to list (picker)     |
 | `a`       | Add / remove members      |
-| `l`       | Add / remove labels       |
+| `l`       | Add / remove labels `*`   |
 | `ctrl+n`  | New label (from picker)   |
-| `d`       | Set / clear due date      |
+| `d`       | Set / clear due date `*`  |
+| `-`       | Add checklist `*`         |
+| `A`       | Attach URL                |
 | `,` / `.` | Move card left / right    |
 | `<` / `>` | Move to first / last list |
 | `tab`     | Cycle panes               |
@@ -123,11 +127,14 @@ trello-tui
 
 #### Checklist Pane
 
-| Key             | Action       |
-| --------------- | ------------ |
-| `j` / `k`       | Navigate items |
-| `enter` / `space` | Toggle item  |
-| `tab`           | Next pane    |
+| Key               | Action         |
+| ----------------- | -------------- |
+| `j` / `k`         | Navigate items |
+| `enter` / `space`  | Toggle item    |
+| `n`               | Add item       |
+| `-`               | New checklist  |
+| `tab`             | Next pane      |
+| `esc`             | Back           |
 
 #### Attachments Pane
 
@@ -135,7 +142,9 @@ trello-tui
 | --------------- | ------------------------ |
 | `j` / `k`       | Navigate attachments     |
 | `o` / `enter`   | Open with system viewer  |
+| `a`             | Add URL attachment       |
 | `tab`           | Next pane                |
+| `esc`           | Back                     |
 
 #### Activity Pane
 
@@ -144,6 +153,7 @@ trello-tui
 | `j` / `k` | Scroll        |
 | `n`       | New comment   |
 | `tab`     | Next pane     |
+| `esc`     | Back          |
 
 ## License
 

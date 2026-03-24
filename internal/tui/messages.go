@@ -110,6 +110,22 @@ type CommentAddedMsg struct {
 	Err    error
 }
 
+type ChecklistCreatedMsg struct {
+	Checklist trello.Checklist
+	Err       error
+}
+
+type CheckItemCreatedMsg struct {
+	ChecklistID string
+	CheckItem   trello.CheckItem
+	Err         error
+}
+
+type AttachmentAddedMsg struct {
+	Attachment trello.Attachment
+	Err        error
+}
+
 type VersionCheckMsg struct {
 	UpdateNotice string
 }

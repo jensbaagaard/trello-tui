@@ -258,3 +258,24 @@ func (c *Client) AddComment(cardID, text string) (Action, error) {
 		map[string]string{"text": text}, &action)
 	return action, err
 }
+
+func (c *Client) CreateChecklist(cardID, name string) (Checklist, error) {
+	var cl Checklist
+	err := c.request("POST", fmt.Sprintf("/cards/%s/checklists", cardID),
+		map[string]string{"name": name}, &cl)
+	return cl, err
+}
+
+func (c *Client) CreateCheckItem(checklistID, name string) (CheckItem, error) {
+	var item CheckItem
+	err := c.request("POST", fmt.Sprintf("/checklists/%s/checkItems", checklistID),
+		map[string]string{"name": name}, &item)
+	return item, err
+}
+
+func (c *Client) AddAttachmentURL(cardID, url string) (Attachment, error) {
+	var att Attachment
+	err := c.request("POST", fmt.Sprintf("/cards/%s/attachments", cardID),
+		map[string]string{"url": url}, &att)
+	return att, err
+}
