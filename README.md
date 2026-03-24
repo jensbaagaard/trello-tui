@@ -157,6 +157,15 @@ Keys marked with `*` match Trello's native shortcuts.
 | `tab`     | Next pane     |
 | `esc`     | Back          |
 
+## Roadmap
+
+- [ ] Move cards across boards (not just lists)
+- [ ] Board search / filtering in the board list
+- [ ] CLI flags: `--version`, `--board=<name>`, `--auto-refresh=<seconds>`
+- [ ] Global card search across boards and archived cards
+- [ ] View and restore archived cards
+- [ ] List management in board view (add, rename, delete, reorder)
+
 ## License
 
 MIT

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -348,6 +349,14 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		m.statusMsg = "Attachment deleted"
 		return m, m.fetchAttachments()
 
+	case CardURLCopiedMsg:
+		if msg.Err != nil {
+			m.statusMsg = "Failed to copy URL"
+		} else {
+			m.statusMsg = "URL copied"
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -471,6 +480,14 @@ func (m CardModel) deleteAttachment(attachmentID string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.DeleteAttachment(cardID, attachmentID)
 		return AttachmentDeletedMsg{AttachmentID: attachmentID, Err: err}
+	}
+}
+
+func (m CardModel) copyCardURL() tea.Cmd {
+	url := m.card.ShortURL
+	return func() tea.Msg {
+		err := clipboard.WriteAll(url)
+		return CardURLCopiedMsg{Err: err}
 	}
 }
 

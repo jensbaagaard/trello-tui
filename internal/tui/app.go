@@ -72,11 +72,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "q":
-			if m.screen == screenBoardList {
+			if m.screen == screenBoardList && !m.boardList.IsFiltering() {
 				return m, tea.Quit
 			}
 		case "enter":
-			if m.screen == screenBoardList {
+			if m.screen == screenBoardList && !m.boardList.IsFiltering() {
 				board := m.boardList.SelectedBoard()
 				if board != nil {
 					m.board = NewBoardModel(m.client, *board)

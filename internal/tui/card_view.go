@@ -525,7 +525,7 @@ func (m CardModel) helpLine() string {
 	case cardAddComment:
 		return ""
 	default:
-		return wrapHelpText("t:title  e:desc  m:move  a:members  l:labels  d:due  -:checklist  A:attach URL  ,/.:move lr  tab:next pane  esc:back", m.width-2)
+		return wrapHelpText("t:title  e:desc  m:move  a:members  l:labels  d:due  c:copy url  -:checklist  A:attach URL  ,/.:move lr  tab:next pane  esc:back", m.width-2)
 	}
 }
 

@@ -583,6 +583,10 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			m.checklistInput.SetValue("")
 			m.checklistInput.Focus()
 			return m, textinput.Blink
+		case "c":
+			if m.card.ShortURL != "" {
+				return m, m.copyCardURL()
+			}
 		case ",":
 			if m.listIndex > 0 {
 				m.moveIndex = m.listIndex - 1

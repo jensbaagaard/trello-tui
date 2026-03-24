@@ -136,6 +136,10 @@ type AttachmentDeletedMsg struct {
 	Err          error
 }
 
+type CardURLCopiedMsg struct {
+	Err error
+}
+
 type VersionCheckMsg struct {
 	UpdateNotice string
 }

@@ -95,6 +95,10 @@ func (m BoardListModel) View() string {
 	return m.list.View()
 }
 
+func (m BoardListModel) IsFiltering() bool {
+	return m.list.FilterState() == list.Filtering
+}
+
 func (m BoardListModel) SelectedBoard() *trello.Board {
 	item := m.list.SelectedItem()
 	if item == nil {
