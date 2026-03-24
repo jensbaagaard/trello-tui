@@ -4,12 +4,20 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 
 ## Features
 
-- Browse and filter your Trello boards
-- Kanban-style board view with scrollable columns
-- Create, edit, archive, and move cards between lists
-- Color-coded labels and member badges on cards
-- Card detail view with description editing
-- Keyboard-driven — no mouse needed
+- **Board browser** with fuzzy filtering
+- **Kanban board view** with responsive columns and horizontal scrolling
+- **Card management** — create, edit, archive, and move cards between lists
+- **Card detail view** with multiple panes:
+  - Info (title, description, labels, members, due date, URL)
+  - Checklists with interactive toggle
+  - Attachments with system viewer integration
+  - Activity feed with interlaced comments
+- **Inline editing** — title, description, due date, members, and labels
+- **Comments** — view and post comments from the activity pane
+- **Card filtering** — search across titles, descriptions, members, labels, and due dates
+- **Visual indicators** — color-coded labels, member initials, due date warnings, checklist progress
+- **Version checking** — notifies you when a newer release is available
+- **Keyboard-driven** — no mouse needed
 
 ## Prerequisites
 
@@ -80,20 +88,49 @@ trello-tui
 | `c`              | Archive card (confirms with `y`/`n`) |
 | `,` / `.`        | Move card left / right               |
 | `<` / `>`        | Move card to first / last list       |
+| `/`              | Filter cards                         |
 | `enter`          | Open card detail                     |
 | `r`              | Refresh                              |
-| `esc`            | Back to board list                   |
+| `esc`            | Clear filter / back to board list    |
 
 #### Card Detail
 
 | Key       | Action                    |
 | --------- | ------------------------- |
-| `t` / `e` | Edit title                |
-| `E`       | Edit description          |
+| `t`       | Edit title                |
+| `e`       | Edit description          |
 | `m`       | Move to list (picker)     |
+| `a`       | Add / remove members      |
+| `l`       | Add / remove labels       |
+| `d`       | Set / clear due date      |
 | `,` / `.` | Move card left / right    |
 | `<` / `>` | Move to first / last list |
+| `tab`     | Cycle panes               |
 | `esc`     | Back to board             |
+
+#### Checklist Pane
+
+| Key             | Action       |
+| --------------- | ------------ |
+| `j` / `k`       | Navigate items |
+| `enter` / `space` | Toggle item  |
+| `tab`           | Next pane    |
+
+#### Attachments Pane
+
+| Key             | Action                   |
+| --------------- | ------------------------ |
+| `j` / `k`       | Navigate attachments     |
+| `o` / `enter`   | Open with system viewer  |
+| `tab`           | Next pane                |
+
+#### Activity Pane
+
+| Key       | Action        |
+| --------- | ------------- |
+| `j` / `k` | Scroll        |
+| `n`       | New comment   |
+| `tab`     | Next pane     |
 
 ## License
 
