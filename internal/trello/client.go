@@ -165,11 +165,11 @@ func (c *Client) GetChecklists(cardID string) ([]Checklist, error) {
 	return checklists, err
 }
 
-func (c *Client) GetComments(cardID string) ([]Comment, error) {
-	var comments []Comment
-	params := url.Values{"filter": {"commentCard"}}
-	err := c.get(fmt.Sprintf("/cards/%s/actions", cardID), params, &comments)
-	return comments, err
+func (c *Client) GetActions(cardID string) ([]Action, error) {
+	var actions []Action
+	params := url.Values{"filter": {"commentCard,updateCard,createCard,addMemberToCard,removeMemberFromCard,addAttachmentToCard"}}
+	err := c.get(fmt.Sprintf("/cards/%s/actions", cardID), params, &actions)
+	return actions, err
 }
 
 func (c *Client) ToggleCheckItem(cardID, checkItemID string, complete bool) error {
@@ -181,9 +181,9 @@ func (c *Client) ToggleCheckItem(cardID, checkItemID string, complete bool) erro
 		map[string]string{"state": state}, nil)
 }
 
-func (c *Client) AddComment(cardID, text string) (Comment, error) {
-	var comment Comment
+func (c *Client) AddComment(cardID, text string) (Action, error) {
+	var action Action
 	err := c.request("POST", fmt.Sprintf("/cards/%s/actions/comments", cardID),
-		map[string]string{"text": text}, &comment)
-	return comment, err
+		map[string]string{"text": text}, &action)
+	return action, err
 }

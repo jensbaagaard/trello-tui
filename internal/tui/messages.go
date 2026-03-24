@@ -72,9 +72,9 @@ type ChecklistsFetchedMsg struct {
 	Err        error
 }
 
-type CommentsFetchedMsg struct {
-	Comments []trello.Comment
-	Err      error
+type ActionsFetchedMsg struct {
+	Actions []trello.Action
+	Err     error
 }
 
 type CheckItemToggledMsg struct {
@@ -82,6 +82,6 @@ type CheckItemToggledMsg struct {
 }
 
 type CommentAddedMsg struct {
-	Comment trello.Comment
-	Err     error
+	Action trello.Action
+	Err    error
 }

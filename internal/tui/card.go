@@ -23,7 +23,7 @@ const (
 	cardAddLabel
 	cardSetDue
 	cardChecklistPane
-	cardCommentsPane
+	cardActivityPane
 	cardAddComment
 )
 
@@ -39,7 +39,7 @@ type CardModel struct {
 	boardMembers []trello.Member
 	boardLabels  []trello.Label
 	checklists   []trello.Checklist
-	comments     []trello.Comment
+	actions      []trello.Action
 	mode         cardMode
 	titleEdit    textinput.Model
 	descEdit     textarea.Model
@@ -50,10 +50,10 @@ type CardModel struct {
 	memberIndex  int
 	labelIndex   int
 	checkItemIdx int
-	commentIdx   int
+	activityIdx  int
 	infoScroll   int
 	clScroll     int
-	comScroll    int
+	actScroll    int
 	width        int
 	height       int
 	statusMsg    string
@@ -112,7 +112,7 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 }
 
 func (m CardModel) Init() tea.Cmd {
-	return tea.Batch(m.fetchChecklists(), m.fetchComments())
+	return tea.Batch(m.fetchChecklists(), m.fetchActions())
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
@@ -202,13 +202,13 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		m.checklists = msg.Checklists
 		return m, nil
 
-	case CommentsFetchedMsg:
+	case ActionsFetchedMsg:
 		m.loadingCom = false
 		if msg.Err != nil {
-			m.statusMsg = fmt.Sprintf("Error fetching comments: %v", msg.Err)
+			m.statusMsg = fmt.Sprintf("Error fetching activity: %v", msg.Err)
 			return m, nil
 		}
-		m.comments = msg.Comments
+		m.actions = msg.Actions
 		return m, nil
 
 	case CheckItemToggledMsg:
@@ -222,7 +222,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 			return m, nil
 		}
-		m.comments = append([]trello.Comment{msg.Comment}, m.comments...)
+		m.actions = append([]trello.Action{msg.Action}, m.actions...)
 		m.statusMsg = "Comment added"
 		return m, nil
 
@@ -458,22 +458,22 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			}
 		case "tab":
 			m.clScroll = 0
-			m.mode = cardCommentsPane
+			m.mode = cardActivityPane
 		case "esc":
 			m.clScroll = 0
 			m.mode = cardView
 		}
 		return m, nil
 
-	case cardCommentsPane:
+	case cardActivityPane:
 		switch msg.String() {
 		case "j", "down":
-			if m.commentIdx < len(m.comments)-1 {
-				m.commentIdx++
+			if m.activityIdx < len(m.actions)-1 {
+				m.activityIdx++
 			}
 		case "k", "up":
-			if m.commentIdx > 0 {
-				m.commentIdx--
+			if m.activityIdx > 0 {
+				m.activityIdx--
 			}
 		case "n":
 			m.mode = cardAddComment
@@ -481,10 +481,10 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			m.commentInput.Focus()
 			return m, textarea.Blink
 		case "tab":
-			m.comScroll = 0
+			m.actScroll = 0
 			m.mode = cardView
 		case "esc":
-			m.comScroll = 0
+			m.actScroll = 0
 			m.mode = cardView
 		}
 		return m, nil
@@ -494,18 +494,18 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 		case "ctrl+s":
 			text := strings.TrimSpace(m.commentInput.Value())
 			if text == "" {
-				m.mode = cardCommentsPane
+				m.mode = cardActivityPane
 				return m, nil
 			}
-			m.mode = cardCommentsPane
+			m.mode = cardActivityPane
 			client := m.client
 			cardID := m.card.ID
 			return m, func() tea.Msg {
-				comment, err := client.AddComment(cardID, text)
-				return CommentAddedMsg{Comment: comment, Err: err}
+				action, err := client.AddComment(cardID, text)
+				return CommentAddedMsg{Action: action, Err: err}
 			}
 		case "esc":
-			m.mode = cardCommentsPane
+			m.mode = cardActivityPane
 		default:
 			var cmd tea.Cmd
 			m.commentInput, cmd = m.commentInput.Update(msg)
@@ -526,7 +526,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			if len(m.checklists) > 0 {
 				m.mode = cardChecklistPane
 			} else {
-				m.mode = cardCommentsPane
+				m.mode = cardActivityPane
 			}
 		case "t":
 			m.mode = cardEditTitle
@@ -672,12 +672,12 @@ func (m CardModel) fetchChecklists() tea.Cmd {
 	}
 }
 
-func (m CardModel) fetchComments() tea.Cmd {
+func (m CardModel) fetchActions() tea.Cmd {
 	client := m.client
 	cardID := m.card.ID
 	return func() tea.Msg {
-		comments, err := client.GetComments(cardID)
-		return CommentsFetchedMsg{Comments: comments, Err: err}
+		actions, err := client.GetActions(cardID)
+		return ActionsFetchedMsg{Actions: actions, Err: err}
 	}
 }
 
@@ -795,7 +795,7 @@ func (m CardModel) View() string {
 	if showChecklist {
 		box2 = m.renderChecklistPane(w, pane2H, m.checkItemIdx)
 	}
-	box3 := m.renderCommentsPane(w, pane3H, m.commentIdx)
+	box3 := m.renderActivityPane(w, pane3H, m.activityIdx)
 
 	body := box1
 	if box2 != "" {
@@ -806,7 +806,7 @@ func (m CardModel) View() string {
 }
 
 func (m CardModel) renderInfoPane(width, height, scroll int) string {
-	active := m.mode != cardChecklistPane && m.mode != cardCommentsPane && m.mode != cardAddComment
+	active := m.mode != cardChecklistPane && m.mode != cardActivityPane && m.mode != cardAddComment
 
 	var b strings.Builder
 
@@ -1018,8 +1018,8 @@ func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 	return paneBox(title, b.String(), width, height, active, scroll)
 }
 
-func (m CardModel) renderCommentsPane(width, height, cursorIdx int) string {
-	active := m.mode == cardCommentsPane || m.mode == cardAddComment
+func (m CardModel) renderActivityPane(width, height, cursorIdx int) string {
+	active := m.mode == cardActivityPane || m.mode == cardAddComment
 	var b strings.Builder
 
 	if m.mode == cardAddComment {
@@ -1027,46 +1027,112 @@ func (m CardModel) renderCommentsPane(width, height, cursorIdx int) string {
 		b.WriteString(m.commentInput.View())
 	} else if m.loadingCom {
 		b.WriteString(helpStyle.Render("Loading..."))
-	} else if len(m.comments) == 0 {
-		b.WriteString(helpStyle.Render("(no comments)"))
+	} else if len(m.actions) == 0 {
+		b.WriteString(helpStyle.Render("(no activity)"))
 	} else {
-		for i, c := range m.comments {
+		for i, a := range m.actions {
 			cursor := "  "
-			if active && i == m.commentIdx {
+			if active && i == m.activityIdx {
 				cursor = "▸ "
 			}
 
-			// parse date
 			dateStr := ""
 			for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02T15:04:05.000Z"} {
-				if t, err := time.Parse(layout, c.Date); err == nil {
+				if t, err := time.Parse(layout, a.Date); err == nil {
 					dateStr = t.Format("2 Jan")
 					break
 				}
 			}
 
-			author := c.MemberCreator.FullName
+			author := a.MemberCreator.FullName
 			if author == "" {
-				author = c.MemberCreator.Username
+				author = a.MemberCreator.Username
 			}
-			header := lipgloss.NewStyle().Bold(true).Render(author)
-			if dateStr != "" {
-				header += helpStyle.Render(" • " + dateStr)
+
+			switch a.Type {
+			case "commentCard":
+				header := lipgloss.NewStyle().Bold(true).Render(author)
+				if dateStr != "" {
+					header += helpStyle.Render(" • " + dateStr)
+				}
+				b.WriteString(cursor + header + "\n")
+				b.WriteString("  " + a.Data.Text + "\n\n")
+
+			case "updateCard":
+				var line string
+				if a.Data.ListBefore != nil && a.Data.ListAfter != nil {
+					line = fmt.Sprintf("%s moved this card from %s to %s", author, a.Data.ListBefore.Name, a.Data.ListAfter.Name)
+				} else {
+					line = fmt.Sprintf("%s updated this card", author)
+				}
+				if dateStr != "" {
+					line += " • " + dateStr
+				}
+				b.WriteString(cursor + helpStyle.Render(line) + "\n\n")
+
+			case "createCard":
+				listName := ""
+				if a.Data.List != nil {
+					listName = a.Data.List.Name
+				}
+				line := fmt.Sprintf("%s added this card to %s", author, listName)
+				if dateStr != "" {
+					line += " • " + dateStr
+				}
+				b.WriteString(cursor + helpStyle.Render(line) + "\n\n")
+
+			case "addMemberToCard":
+				memberName := ""
+				if a.Data.Member != nil {
+					memberName = a.Data.Member.FullName
+				}
+				line := fmt.Sprintf("%s added %s to this card", author, memberName)
+				if dateStr != "" {
+					line += " • " + dateStr
+				}
+				b.WriteString(cursor + helpStyle.Render(line) + "\n\n")
+
+			case "removeMemberFromCard":
+				memberName := ""
+				if a.Data.Member != nil {
+					memberName = a.Data.Member.FullName
+				}
+				line := fmt.Sprintf("%s removed %s from this card", author, memberName)
+				if dateStr != "" {
+					line += " • " + dateStr
+				}
+				b.WriteString(cursor + helpStyle.Render(line) + "\n\n")
+
+			case "addAttachmentToCard":
+				attachName := ""
+				if a.Data.Attachment != nil {
+					attachName = a.Data.Attachment.Name
+				}
+				line := fmt.Sprintf("%s attached %s", author, attachName)
+				if dateStr != "" {
+					line += " • " + dateStr
+				}
+				b.WriteString(cursor + helpStyle.Render(line) + "\n\n")
+
+			default:
+				line := fmt.Sprintf("%s performed an action", author)
+				if dateStr != "" {
+					line += " • " + dateStr
+				}
+				b.WriteString(cursor + helpStyle.Render(line) + "\n\n")
 			}
-			b.WriteString(cursor + header + "\n")
-			b.WriteString("  " + c.Data.Text + "\n\n")
 		}
 	}
 
-	title := "Comments"
+	title := "Activity"
 	if active && m.mode != cardAddComment {
-		title += helpStyle.Render("  j/k:scroll  n:add  tab:next  esc:back")
+		title += helpStyle.Render("  j/k:scroll  n:comment  tab:next  esc:back")
 	}
 	availLines := (height - 2) - 2
 	if availLines < 1 {
 		availLines = 1
 	}
-	// each comment is ~3 lines (header + text + blank); scroll to keep cursor visible
+	// each activity item is ~2-3 lines; scroll to keep cursor visible
 	scroll := clampScroll(cursorIdx*3, availLines)
 	return paneBox(title, b.String(), width, height, active, scroll)
 }
@@ -1083,7 +1149,7 @@ func (m CardModel) helpLine() string {
 	switch m.mode {
 	case cardChecklistPane:
 		return ""
-	case cardCommentsPane:
+	case cardActivityPane:
 		return ""
 	case cardAddComment:
 		return ""

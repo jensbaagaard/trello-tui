@@ -62,3 +62,30 @@ type Comment struct {
 	Data          CommentData `json:"data"`
 	MemberCreator Member      `json:"memberCreator"`
 }
+
+type ActionList struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type ActionRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type ActionData struct {
+	Text       string      `json:"text"`
+	List       *ActionList `json:"list"`
+	ListBefore *ActionList `json:"listBefore"`
+	ListAfter  *ActionList `json:"listAfter"`
+	Member     *Member     `json:"member"`
+	Attachment *ActionRef  `json:"attachment"`
+}
+
+type Action struct {
+	ID            string     `json:"id"`
+	Type          string     `json:"type"`
+	Date          string     `json:"date"`
+	Data          ActionData `json:"data"`
+	MemberCreator Member     `json:"memberCreator"`
+}
