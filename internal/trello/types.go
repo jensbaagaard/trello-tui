@@ -14,6 +14,13 @@ type List struct {
 	Closed  bool   `json:"closed"`
 }
 
+type Badges struct {
+	CheckItems        int `json:"checkItems"`
+	CheckItemsChecked int `json:"checkItemsChecked"`
+	Comments          int `json:"comments"`
+	Attachments       int `json:"attachments"`
+}
+
 type Card struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
@@ -26,6 +33,7 @@ type Card struct {
 	Labels      []Label  `json:"labels"`
 	ShortURL    string   `json:"shortUrl"`
 	Members     []Member `json:"members"`
+	Badges      Badges   `json:"badges"`
 }
 
 type Label struct {

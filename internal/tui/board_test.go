@@ -795,6 +795,56 @@ func TestFormatDue(t *testing.T) {
 	}
 }
 
+func TestRenderCardChecklistBadge(t *testing.T) {
+	t.Run("no checklist items shows no badge", func(t *testing.T) {
+		c := trello.Card{ID: "c1", Name: "No checklists"}
+		rendered := renderCard(c, 30, false)
+		if strings.Contains(rendered, "☑") {
+			t.Error("expected no checklist badge for card without checklists")
+		}
+	})
+
+	t.Run("partial progress shows dim badge", func(t *testing.T) {
+		c := trello.Card{
+			ID:   "c2",
+			Name: "In progress",
+			Badges: trello.Badges{CheckItems: 4, CheckItemsChecked: 3},
+		}
+		rendered := renderCard(c, 30, false)
+		if !strings.Contains(rendered, "☑ 3/4") {
+			t.Errorf("expected '☑ 3/4' in rendered card, got:\n%s", rendered)
+		}
+	})
+
+	t.Run("all complete shows green badge", func(t *testing.T) {
+		c := trello.Card{
+			ID:   "c3",
+			Name: "All done",
+			Badges: trello.Badges{CheckItems: 5, CheckItemsChecked: 5},
+		}
+		rendered := renderCard(c, 30, false)
+		if !strings.Contains(rendered, "☑ 5/5") {
+			t.Errorf("expected '☑ 5/5' in rendered card, got:\n%s", rendered)
+		}
+	})
+
+	t.Run("badge appears alongside member initials", func(t *testing.T) {
+		c := trello.Card{
+			ID:      "c4",
+			Name:    "With members",
+			Members: []trello.Member{{ID: "m1", FullName: "Alice"}},
+			Badges:  trello.Badges{CheckItems: 2, CheckItemsChecked: 1},
+		}
+		rendered := renderCard(c, 30, false)
+		if !strings.Contains(rendered, "☑ 1/2") {
+			t.Errorf("expected '☑ 1/2' in rendered card, got:\n%s", rendered)
+		}
+		if !strings.Contains(rendered, "ali") {
+			t.Errorf("expected member initials 'ali' in rendered card, got:\n%s", rendered)
+		}
+	})
+}
+
 func TestMatchesFilterDueDate(t *testing.T) {
 	card := trello.Card{
 		ID:   "c1",

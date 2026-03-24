@@ -70,7 +70,11 @@ func TestGetLists(t *testing.T) {
 
 func TestGetCards(t *testing.T) {
 	cards := []Card{
-		{ID: "c1", Name: "Card One", IDList: "l1", Members: []Member{{ID: "m1", FullName: "Alice"}}},
+		{
+			ID: "c1", Name: "Card One", IDList: "l1",
+			Members: []Member{{ID: "m1", FullName: "Alice"}},
+			Badges:  Badges{CheckItems: 4, CheckItemsChecked: 3, Comments: 2, Attachments: 1},
+		},
 	}
 	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/lists/l1/cards") {
@@ -95,6 +99,12 @@ func TestGetCards(t *testing.T) {
 	}
 	if len(got[0].Members) != 1 || got[0].Members[0].FullName != "Alice" {
 		t.Errorf("Members not deserialized correctly")
+	}
+	if got[0].Badges.CheckItems != 4 {
+		t.Errorf("Badges.CheckItems = %d, want 4", got[0].Badges.CheckItems)
+	}
+	if got[0].Badges.CheckItemsChecked != 3 {
+		t.Errorf("Badges.CheckItemsChecked = %d, want 3", got[0].Badges.CheckItemsChecked)
 	}
 }
 

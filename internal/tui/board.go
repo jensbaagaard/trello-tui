@@ -803,13 +803,25 @@ func renderCard(c trello.Card, width int, selected bool) string {
 
 	content := topLine + c.Name
 
+	var bottomParts []string
 	if len(c.Members) > 0 {
-		var badges []string
+		var memberBadges []string
 		for _, m := range c.Members {
 			initials := memberInitials(m.FullName)
-			badges = append(badges, memberColor(m.ID).Render(initials))
+			memberBadges = append(memberBadges, memberColor(m.ID).Render(initials))
 		}
-		content += "\n\n" + strings.Join(badges, " ")
+		bottomParts = append(bottomParts, strings.Join(memberBadges, " "))
+	}
+	if c.Badges.CheckItems > 0 {
+		checkBadge := fmt.Sprintf("☑ %d/%d", c.Badges.CheckItemsChecked, c.Badges.CheckItems)
+		style := lipgloss.NewStyle().Foreground(dimColor)
+		if c.Badges.CheckItemsChecked == c.Badges.CheckItems {
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981"))
+		}
+		bottomParts = append(bottomParts, style.Render(checkBadge))
+	}
+	if len(bottomParts) > 0 {
+		content += "\n\n" + strings.Join(bottomParts, "  ")
 	}
 
 	style := cardStyle
