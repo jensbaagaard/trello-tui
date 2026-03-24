@@ -51,6 +51,9 @@ type CardModel struct {
 	labelIndex   int
 	checkItemIdx int
 	commentIdx   int
+	infoScroll   int
+	clScroll     int
+	comScroll    int
 	width        int
 	height       int
 	statusMsg    string
@@ -454,8 +457,10 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				}
 			}
 		case "tab":
+			m.clScroll = 0
 			m.mode = cardCommentsPane
 		case "esc":
+			m.clScroll = 0
 			m.mode = cardView
 		}
 		return m, nil
@@ -476,8 +481,10 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			m.commentInput.Focus()
 			return m, textarea.Blink
 		case "tab":
+			m.comScroll = 0
 			m.mode = cardView
 		case "esc":
+			m.comScroll = 0
 			m.mode = cardView
 		}
 		return m, nil
@@ -508,20 +515,52 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 
 	default: // cardView — info pane active
 		switch msg.String() {
+		case "j", "down":
+			m.infoScroll++
+		case "k", "up":
+			if m.infoScroll > 0 {
+				m.infoScroll--
+			}
 		case "tab":
+			m.infoScroll = 0
 			if len(m.checklists) > 0 {
 				m.mode = cardChecklistPane
 			} else {
 				m.mode = cardCommentsPane
 			}
-		case "t", "e":
+		case "t":
 			m.mode = cardEditTitle
 			m.titleEdit.SetValue(m.card.Name)
 			m.titleEdit.Focus()
 			return m, textinput.Blink
-		case "E":
+		case "e":
 			m.mode = cardEditDesc
 			m.descEdit.SetValue(m.card.Desc)
+			// size to fill the info pane
+			available := m.height
+			if available < 24 {
+				available = 24
+			}
+			showChecklist := m.loadingCL || len(m.checklists) > 0
+			var pane1H int
+			if showChecklist {
+				pane1H = available * 40 / 100
+			} else {
+				pane1H = available * 55 / 100
+			}
+			if pane1H < 9 {
+				pane1H = 9
+			}
+			innerW := m.width - 2 - 4 // outer padding(2) + pane borders+padding(4)
+			if innerW < 20 {
+				innerW = 20
+			}
+			innerH := pane1H - 5 // borders(2) + title+blank(2) + hint(1)
+			if innerH < 3 {
+				innerH = 3
+			}
+			m.descEdit.SetWidth(innerW)
+			m.descEdit.SetHeight(innerH)
 			m.descEdit.Focus()
 			return m, textarea.Blink
 		case "m":
@@ -705,22 +744,32 @@ func (m CardModel) isLabelOnCard(labelID string) bool {
 // ── View ──────────────────────────────────────────────────────────────────────
 
 func (m CardModel) View() string {
-	w := m.width
+	w := m.width - 2
 	if w < 44 {
 		w = 44
 	}
 
-	available := m.height
+	available := m.height - 3
 	if available < 24 {
 		available = 24
 	}
+
+	var statusBar string
+	if m.statusMsg != "" {
+		statusBar = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg)
+	} else {
+		statusBar = m.helpLine()
+	}
+
 	showChecklist := m.loadingCL || len(m.checklists) > 0
 
+	// Layout: box1 \n [box2 \n] box3 \n statusBar
+	// Overhead: 3 newlines + 1 status line = 4 rows with checklist, 3 rows without
 	var pane1H, pane2H, pane3H int
 	if showChecklist {
 		pane1H = available * 40 / 100
 		pane2H = available * 30 / 100
-		pane3H = available - pane1H - pane2H - 1
+		pane3H = available - pane1H - pane2H - 4
 		if pane1H < 9 {
 			pane1H = 9
 		}
@@ -732,7 +781,7 @@ func (m CardModel) View() string {
 		}
 	} else {
 		pane1H = available * 55 / 100
-		pane3H = available - pane1H - 1
+		pane3H = available - pane1H - 3
 		if pane1H < 9 {
 			pane1H = 9
 		}
@@ -741,19 +790,12 @@ func (m CardModel) View() string {
 		}
 	}
 
-	box1 := m.renderInfoPane(w, pane1H)
+	box1 := m.renderInfoPane(w, pane1H, m.infoScroll)
 	var box2 string
 	if showChecklist {
-		box2 = m.renderChecklistPane(w, pane2H)
+		box2 = m.renderChecklistPane(w, pane2H, m.checkItemIdx)
 	}
-	box3 := m.renderCommentsPane(w, pane3H)
-
-	var statusBar string
-	if m.statusMsg != "" {
-		statusBar = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg)
-	} else {
-		statusBar = m.helpLine()
-	}
+	box3 := m.renderCommentsPane(w, pane3H, m.commentIdx)
 
 	body := box1
 	if box2 != "" {
@@ -763,7 +805,7 @@ func (m CardModel) View() string {
 	return lipgloss.NewStyle().Padding(0, 1).Render(body)
 }
 
-func (m CardModel) renderInfoPane(width, height int) string {
+func (m CardModel) renderInfoPane(width, height, scroll int) string {
 	active := m.mode != cardChecklistPane && m.mode != cardCommentsPane && m.mode != cardAddComment
 
 	var b strings.Builder
@@ -914,10 +956,10 @@ func (m CardModel) renderInfoPane(width, height int) string {
 		b.WriteString(desc)
 	}
 
-	return paneBox("Card Info", b.String(), width, height, active)
+	return paneBox("Card Info", b.String(), width, height, active, scroll)
 }
 
-func (m CardModel) renderChecklistPane(width, height int) string {
+func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 	active := m.mode == cardChecklistPane
 	var b strings.Builder
 
@@ -964,10 +1006,19 @@ func (m CardModel) renderChecklistPane(width, height int) string {
 	if active {
 		title += helpStyle.Render("  j/k:navigate  enter:toggle  tab:next  esc:back")
 	}
-	return paneBox(title, b.String(), width, height, active)
+	innerW := width - 4
+	if innerW < 10 {
+		innerW = 10
+	}
+	availLines := (height - 2) - 2
+	if availLines < 1 {
+		availLines = 1
+	}
+	scroll := clampScroll(cursorIdx, availLines)
+	return paneBox(title, b.String(), width, height, active, scroll)
 }
 
-func (m CardModel) renderCommentsPane(width, height int) string {
+func (m CardModel) renderCommentsPane(width, height, cursorIdx int) string {
 	active := m.mode == cardCommentsPane || m.mode == cardAddComment
 	var b strings.Builder
 
@@ -1011,7 +1062,21 @@ func (m CardModel) renderCommentsPane(width, height int) string {
 	if active && m.mode != cardAddComment {
 		title += helpStyle.Render("  j/k:scroll  n:add  tab:next  esc:back")
 	}
-	return paneBox(title, b.String(), width, height, active)
+	availLines := (height - 2) - 2
+	if availLines < 1 {
+		availLines = 1
+	}
+	// each comment is ~3 lines (header + text + blank); scroll to keep cursor visible
+	scroll := clampScroll(cursorIdx*3, availLines)
+	return paneBox(title, b.String(), width, height, active, scroll)
+}
+
+// clampScroll returns a scroll offset that ensures the cursor line is visible.
+func clampScroll(cursorLine, visibleLines int) int {
+	if cursorLine < visibleLines {
+		return 0
+	}
+	return cursorLine - visibleLines + 1
 }
 
 func (m CardModel) helpLine() string {
@@ -1023,28 +1088,79 @@ func (m CardModel) helpLine() string {
 	case cardAddComment:
 		return ""
 	default:
-		return helpStyle.Render("t:title  E:desc  m:move  a:members  l:labels  d:due  ,/.:move lr  tab:next pane  esc:back")
+		return helpStyle.Render("t:title  e:desc  m:move  a:members  l:labels  d:due  ,/.:move lr  tab:next pane  esc:back")
 	}
 }
 
 // ── paneBox ───────────────────────────────────────────────────────────────────
 
-func paneBox(title, content string, width, height int, active bool) string {
+func paneBox(title, content string, width, height int, active bool, scroll int) string {
 	borderColor := dimColor
 	if active {
 		borderColor = primaryColor
+	}
+	titleColor := secondaryColor
+	if !active {
+		titleColor = dimColor
 	}
 	innerW := width - 4 // border(1 each side) + padding(1 each side)
 	if innerW < 10 {
 		innerW = 10
 	}
-	header := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render(title) + "\n" +
-		helpStyle.Render(strings.Repeat("─", innerW))
+	innerH := height - 2 // subtract top+bottom borders
+	// title takes 1 line + 1 blank line = 2 lines
+	availLines := innerH - 2
+	if availLines < 1 {
+		availLines = 1
+	}
+	content = scrollLines(content, scroll, availLines, innerW)
+	titleLine := lipgloss.NewStyle().Bold(true).Foreground(titleColor).Render(title)
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(innerW).
-		Height(height - 2).
-		Render(header + "\n" + content)
+		Height(innerH).
+		Render(titleLine + "\n\n" + content)
+}
+
+// scrollLines skips the first `offset` visual rows then returns up to maxLines rows,
+// accounting for long lines that wrap at wrapWidth characters.
+func scrollLines(content string, offset, maxLines, wrapWidth int) string {
+	lines := strings.Split(content, "\n")
+	// expand each logical line into visual rows
+	type row struct{ text string }
+	var rows []row
+	for _, line := range lines {
+		vw := lipgloss.Width(line)
+		if wrapWidth > 0 && vw > wrapWidth {
+			// approximate: split into chunks by rune count
+			runes := []rune(line)
+			for len(runes) > 0 {
+				end := wrapWidth
+				if end > len(runes) {
+					end = len(runes)
+				}
+				rows = append(rows, row{string(runes[:end])})
+				runes = runes[end:]
+			}
+		} else {
+			rows = append(rows, row{line})
+		}
+	}
+	if offset >= len(rows) {
+		offset = len(rows) - 1
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	visible := rows[offset:]
+	if len(visible) > maxLines {
+		visible = visible[:maxLines]
+	}
+	out := make([]string, len(visible))
+	for i, r := range visible {
+		out[i] = r.text
+	}
+	return strings.Join(out, "\n")
 }
