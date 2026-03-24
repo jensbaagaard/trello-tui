@@ -16,6 +16,7 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 - **Inline editing** — title, description, due date, members, and labels
 - **Comments** — view and post comments from the activity pane
 - **Archived cards** — browse and restore archived cards with filtering
+- **Global card search** — search cards across all boards from the board list screen
 - **Card filtering** — search across titles, descriptions, members, labels, and due dates
 - **Visual indicators** — color-coded labels, member initials, due date warnings, checklist progress
 - **Auto-refresh** — optionally re-fetch board data on a timer
@@ -82,8 +83,18 @@ trello-tui --version                # print version and exit
 | --------- | --------------- |
 | `j` / `k` | Navigate boards |
 | `/`       | Filter boards   |
+| `s`       | Search cards    |
 | `enter`   | Open board      |
 | `q`       | Quit            |
+
+#### Card Search
+
+| Key       | Action            |
+| --------- | ----------------- |
+| `enter`   | Search / open card |
+| `j` / `k` | Navigate results  |
+| `/`       | New search        |
+| `esc`     | Back to boards    |
 
 #### Board View
 
@@ -180,7 +191,7 @@ Keys marked with `*` match Trello's native shortcuts.
 - [x] Move cards across boards (not just lists)
 - [ ] Board search / filtering in the board list
 - [x] CLI flags: `--version`, `--board=<name>`, `--auto-refresh=<seconds>`
-- [ ] Global card search across boards and archived cards
+- [x] Global card search across boards
 - [x] View and restore archived cards
 - [ ] List management in board view (add, rename, delete, reorder)
 
