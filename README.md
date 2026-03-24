@@ -12,6 +12,7 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
   - Checklists with interactive toggle
   - Attachments with system viewer integration
   - Activity feed with interlaced comments
+- **Label management** — create, edit, and delete board labels; create labels inline from the card picker
 - **Inline editing** — title, description, due date, members, and labels
 - **Comments** — view and post comments from the activity pane
 - **Card filtering** — search across titles, descriptions, members, labels, and due dates
@@ -88,10 +89,21 @@ trello-tui
 | `c`              | Archive card (confirms with `y`/`n`) |
 | `,` / `.`        | Move card left / right               |
 | `<` / `>`        | Move card to first / last list       |
+| `L`              | Manage board labels                  |
 | `/`              | Filter cards                         |
 | `enter`          | Open card detail                     |
 | `r`              | Refresh                              |
 | `esc`            | Clear filter / back to board list    |
+
+#### Label Manager (from board view)
+
+| Key       | Action       |
+| --------- | ------------ |
+| `j` / `k` | Navigate     |
+| `n`       | New label    |
+| `e`       | Edit label   |
+| `d`       | Delete label |
+| `esc`     | Back         |
 
 #### Card Detail
 
@@ -102,6 +114,7 @@ trello-tui
 | `m`       | Move to list (picker)     |
 | `a`       | Add / remove members      |
 | `l`       | Add / remove labels       |
+| `ctrl+n`  | New label (from picker)   |
 | `d`       | Set / clear due date      |
 | `,` / `.` | Move card left / right    |
 | `<` / `>` | Move to first / last list |

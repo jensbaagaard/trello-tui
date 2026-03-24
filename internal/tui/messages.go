@@ -67,6 +67,21 @@ type LabelToggledMsg struct {
 	Err error
 }
 
+type LabelCreatedMsg struct {
+	Label trello.Label
+	Err   error
+}
+
+type LabelUpdatedMsg struct {
+	Label trello.Label
+	Err   error
+}
+
+type LabelDeletedMsg struct {
+	LabelID string
+	Err     error
+}
+
 type ChecklistsFetchedMsg struct {
 	Checklists []trello.Checklist
 	Err        error

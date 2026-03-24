@@ -85,6 +85,11 @@ func memberColor(memberID string) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("#1a1a1a")).Background(c).Bold(true)
 }
 
+var TrelloColors = []string{
+	"green", "yellow", "orange", "red", "purple",
+	"blue", "sky", "lime", "pink", "black",
+}
+
 func labelColor(color string) lipgloss.Style {
 	colors := map[string]lipgloss.Color{
 		"green":  lipgloss.Color("#10B981"),

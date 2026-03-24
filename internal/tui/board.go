@@ -20,6 +20,11 @@ const (
 	boardAddCard
 	boardConfirmArchive
 	boardFilter
+	boardLabelManager
+	boardLabelCreate
+	boardLabelEdit
+	boardLabelColorPick
+	boardLabelConfirmDelete
 )
 
 type BoardModel struct {
@@ -39,6 +44,13 @@ type BoardModel struct {
 	textInput   textinput.Model
 	statusMsg   string
 	filterText  string
+
+	// Label manager
+	boardLabels    []trello.Label
+	labelCursor    int
+	labelNameInput textinput.Model
+	labelColorIdx  int
+	editingLabelID string
 }
 
 func NewBoardModel(client *trello.Client, board trello.Board) BoardModel {
@@ -46,12 +58,17 @@ func NewBoardModel(client *trello.Client, board trello.Board) BoardModel {
 	ti.Placeholder = "Card title..."
 	ti.CharLimit = 200
 
+	li := textinput.New()
+	li.Placeholder = "Label name..."
+	li.CharLimit = 100
+
 	return BoardModel{
-		client:      client,
-		board:       board,
-		cardsByList: make(map[string][]trello.Card),
-		loading:     true,
-		textInput:   ti,
+		client:         client,
+		board:          board,
+		cardsByList:    make(map[string][]trello.Card),
+		loading:        true,
+		textInput:      ti,
+		labelNameInput: li,
 	}
 }
 
@@ -227,6 +244,61 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 		m.statusMsg = "Card moved"
 		return m, nil
 
+	case BoardLabelsFetchedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error fetching labels: %v", msg.Err)
+			m.mode = boardNav
+			return m, nil
+		}
+		m.boardLabels = msg.Labels
+		return m, nil
+
+	case LabelCreatedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error creating label: %v", msg.Err)
+			return m, nil
+		}
+		m.boardLabels = append(m.boardLabels, msg.Label)
+		m.labelCursor = len(m.boardLabels) - 1
+		m.statusMsg = "Label created"
+		m.mode = boardLabelManager
+		return m, nil
+
+	case LabelUpdatedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error updating label: %v", msg.Err)
+			return m, nil
+		}
+		for i, l := range m.boardLabels {
+			if l.ID == msg.Label.ID {
+				m.boardLabels[i] = msg.Label
+				break
+			}
+		}
+		m.updateLabelOnCards(msg.Label)
+		m.statusMsg = "Label updated"
+		m.mode = boardLabelManager
+		return m, nil
+
+	case LabelDeletedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error deleting label: %v", msg.Err)
+			return m, nil
+		}
+		for i, l := range m.boardLabels {
+			if l.ID == msg.LabelID {
+				m.boardLabels = append(m.boardLabels[:i], m.boardLabels[i+1:]...)
+				break
+			}
+		}
+		m.removeLabelFromCards(msg.LabelID)
+		if m.labelCursor >= len(m.boardLabels) && m.labelCursor > 0 {
+			m.labelCursor--
+		}
+		m.statusMsg = "Label deleted"
+		m.mode = boardLabelManager
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -243,6 +315,10 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 	}
 	if m.mode == boardFilter {
 		return m.handleFilterKey(msg)
+	}
+	if m.mode == boardLabelManager || m.mode == boardLabelCreate || m.mode == boardLabelEdit ||
+		m.mode == boardLabelColorPick || m.mode == boardLabelConfirmDelete {
+		return m.handleLabelManagerKey(msg)
 	}
 
 	switch msg.String() {
@@ -289,6 +365,14 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		return m.moveCardToFirst()
 	case ">":
 		return m.moveCardToLast()
+	case "L":
+		m.mode = boardLabelManager
+		m.labelCursor = 0
+		m.statusMsg = ""
+		if len(m.boardLabels) == 0 {
+			return m, m.fetchBoardLabels()
+		}
+		return m, nil
 	case "/":
 		m.mode = boardFilter
 		m.textInput.Placeholder = "title, description, member, label..."
@@ -435,6 +519,172 @@ func (m BoardModel) archiveCard(cardID string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.ArchiveCard(cardID)
 		return CardArchivedMsg{CardID: cardID, Err: err}
+	}
+}
+
+func (m BoardModel) fetchBoardLabels() tea.Cmd {
+	client := m.client
+	boardID := m.board.ID
+	return func() tea.Msg {
+		labels, err := client.GetBoardLabels(boardID)
+		return BoardLabelsFetchedMsg{Labels: labels, Err: err}
+	}
+}
+
+func (m BoardModel) handleLabelManagerKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	switch m.mode {
+	case boardLabelManager:
+		switch msg.String() {
+		case "j", "down":
+			if m.labelCursor < len(m.boardLabels)-1 {
+				m.labelCursor++
+			}
+		case "k", "up":
+			if m.labelCursor > 0 {
+				m.labelCursor--
+			}
+		case "n":
+			m.mode = boardLabelCreate
+			m.labelNameInput.SetValue("")
+			m.labelNameInput.Focus()
+			m.editingLabelID = ""
+			return m, textinput.Blink
+		case "e":
+			if len(m.boardLabels) > 0 && m.labelCursor < len(m.boardLabels) {
+				label := m.boardLabels[m.labelCursor]
+				m.mode = boardLabelEdit
+				m.labelNameInput.SetValue(label.Name)
+				m.labelNameInput.Focus()
+				m.editingLabelID = label.ID
+				for i, c := range TrelloColors {
+					if c == label.Color {
+						m.labelColorIdx = i
+						break
+					}
+				}
+				return m, textinput.Blink
+			}
+		case "d":
+			if len(m.boardLabels) > 0 && m.labelCursor < len(m.boardLabels) {
+				m.mode = boardLabelConfirmDelete
+			}
+		case "esc":
+			m.mode = boardNav
+			m.statusMsg = ""
+		}
+		return m, nil
+
+	case boardLabelCreate, boardLabelEdit:
+		switch msg.String() {
+		case "enter":
+			name := strings.TrimSpace(m.labelNameInput.Value())
+			m.mode = boardLabelColorPick
+			m.labelNameInput.Blur()
+			if m.editingLabelID == "" {
+				m.labelColorIdx = 0
+			}
+			_ = name // stored in labelNameInput, read when color is confirmed
+			return m, nil
+		case "esc":
+			m.mode = boardLabelManager
+			return m, nil
+		default:
+			var cmd tea.Cmd
+			m.labelNameInput, cmd = m.labelNameInput.Update(msg)
+			return m, cmd
+		}
+
+	case boardLabelColorPick:
+		switch msg.String() {
+		case "j", "down":
+			if m.labelColorIdx < len(TrelloColors)-1 {
+				m.labelColorIdx++
+			}
+		case "k", "up":
+			if m.labelColorIdx > 0 {
+				m.labelColorIdx--
+			}
+		case "enter":
+			name := strings.TrimSpace(m.labelNameInput.Value())
+			color := TrelloColors[m.labelColorIdx]
+			if m.editingLabelID != "" {
+				return m, m.updateLabel(m.editingLabelID, name, color)
+			}
+			return m, m.createLabel(name, color)
+		case "esc":
+			if m.editingLabelID != "" {
+				m.mode = boardLabelEdit
+			} else {
+				m.mode = boardLabelCreate
+			}
+			m.labelNameInput.Focus()
+			return m, textinput.Blink
+		}
+		return m, nil
+
+	case boardLabelConfirmDelete:
+		switch msg.String() {
+		case "y", "Y":
+			if m.labelCursor < len(m.boardLabels) {
+				labelID := m.boardLabels[m.labelCursor].ID
+				return m, m.deleteLabel(labelID)
+			}
+			m.mode = boardLabelManager
+		case "n", "N", "esc":
+			m.mode = boardLabelManager
+		}
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m BoardModel) createLabel(name, color string) tea.Cmd {
+	client := m.client
+	boardID := m.board.ID
+	return func() tea.Msg {
+		label, err := client.CreateLabel(boardID, name, color)
+		return LabelCreatedMsg{Label: label, Err: err}
+	}
+}
+
+func (m BoardModel) updateLabel(labelID, name, color string) tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		label, err := client.UpdateLabel(labelID, name, color)
+		return LabelUpdatedMsg{Label: label, Err: err}
+	}
+}
+
+func (m BoardModel) deleteLabel(labelID string) tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		err := client.DeleteLabel(labelID)
+		return LabelDeletedMsg{LabelID: labelID, Err: err}
+	}
+}
+
+func (m *BoardModel) updateLabelOnCards(label trello.Label) {
+	for listID, cards := range m.cardsByList {
+		for ci, card := range cards {
+			for li, cl := range card.Labels {
+				if cl.ID == label.ID {
+					m.cardsByList[listID][ci].Labels[li] = label
+				}
+			}
+		}
+	}
+}
+
+func (m *BoardModel) removeLabelFromCards(labelID string) {
+	for listID, cards := range m.cardsByList {
+		for ci, card := range cards {
+			for li, cl := range card.Labels {
+				if cl.ID == labelID {
+					m.cardsByList[listID][ci].Labels = append(card.Labels[:li], card.Labels[li+1:]...)
+					break
+				}
+			}
+		}
 	}
 }
 
@@ -636,6 +886,11 @@ func (m BoardModel) View() string {
 		return "No lists found on this board."
 	}
 
+	if m.mode == boardLabelManager || m.mode == boardLabelCreate || m.mode == boardLabelEdit ||
+		m.mode == boardLabelColorPick || m.mode == boardLabelConfirmDelete {
+		return m.renderLabelManager()
+	}
+
 	visLists := m.visibleLists()
 
 	if m.filterText != "" && len(visLists) == 0 {
@@ -682,11 +937,83 @@ func (m BoardModel) View() string {
 	} else if m.filterText != "" {
 		status = helpStyle.Render(fmt.Sprintf("filter: %s  ←→:lists  j/k:cards  /:edit filter  esc:clear filter", m.filterText))
 	} else {
-		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  enter:open  /:filter  r:refresh  esc:back")
+		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  L:labels  enter:open  /:filter  r:refresh  esc:back")
 	}
 
 	header := titleStyle.Render(m.board.Name) + scrollHint
 	return header + "\n" + board + "\n" + status
+}
+
+func (m BoardModel) renderLabelManager() string {
+	header := titleStyle.Render(m.board.Name+" — Labels") + "\n\n"
+	var b strings.Builder
+
+	switch m.mode {
+	case boardLabelCreate, boardLabelEdit:
+		action := "Create"
+		if m.mode == boardLabelEdit {
+			action = "Edit"
+		}
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render(action+" label") + "\n\n")
+		b.WriteString("Name: " + m.labelNameInput.View() + "\n\n")
+		b.WriteString(helpStyle.Render("enter:pick color  esc:cancel"))
+
+	case boardLabelColorPick:
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		name := strings.TrimSpace(m.labelNameInput.Value())
+		if name == "" {
+			name = "(unnamed)"
+		}
+		b.WriteString(sT.Render("Pick color for: "+name) + "\n\n")
+		for i, c := range TrelloColors {
+			cursor := "  "
+			s := lipgloss.NewStyle()
+			if i == m.labelColorIdx {
+				cursor = "▸ "
+				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+			}
+			b.WriteString(cursor + labelColor(c).Render("● ") + s.Render(c) + "\n")
+		}
+		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:confirm  esc:back"))
+
+	case boardLabelConfirmDelete:
+		name := ""
+		if m.labelCursor < len(m.boardLabels) {
+			label := m.boardLabels[m.labelCursor]
+			name = label.Name
+			if name == "" {
+				name = label.Color
+			}
+		}
+		b.WriteString(errorStyle.Render(fmt.Sprintf("Delete label \"%s\"? This removes it from all cards. (y/n)", name)))
+
+	default: // boardLabelManager
+		if len(m.boardLabels) == 0 {
+			b.WriteString(helpStyle.Render("No labels on this board."))
+		} else {
+			for i, label := range m.boardLabels {
+				cursor := "  "
+				s := lipgloss.NewStyle()
+				if i == m.labelCursor {
+					cursor = "▸ "
+					s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				}
+				name := label.Name
+				if name == "" {
+					name = "(unnamed)"
+				}
+				b.WriteString(cursor + labelColor(label.Color).Render("● ") + s.Render(name) + helpStyle.Render("  ["+label.Color+"]") + "\n")
+			}
+		}
+		b.WriteString("\n")
+		if m.statusMsg != "" {
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg) + "\n")
+		}
+		b.WriteString(helpStyle.Render("j/k:navigate  n:new  e:edit  d:delete  esc:back"))
+	}
+
+	return header + b.String()
 }
 
 func (m BoardModel) renderColumn(idx int, l trello.List, width int) string {

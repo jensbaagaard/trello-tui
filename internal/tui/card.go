@@ -23,6 +23,8 @@ const (
 	cardAddMember
 	cardAddLabel
 	cardSetDue
+	cardCreateLabel
+	cardCreateLabelColor
 	cardChecklistPane
 	cardAttachmentsPane
 	cardActivityPane
@@ -47,8 +49,10 @@ type CardModel struct {
 	titleEdit    textinput.Model
 	descEdit     textarea.Model
 	dueInput     textinput.Model
-	pickerFilter textinput.Model
-	commentInput textarea.Model
+	pickerFilter   textinput.Model
+	labelNameInput textinput.Model
+	labelColorIdx  int
+	commentInput   textarea.Model
 	moveIndex    int
 	memberIndex  int
 	labelIndex   int
@@ -85,6 +89,10 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 	pf.Placeholder = "type to filter..."
 	pf.CharLimit = 50
 
+	ln := textinput.New()
+	ln.Placeholder = "Label name..."
+	ln.CharLimit = 100
+
 	ci := textarea.New()
 	ci.Placeholder = "Write a comment..."
 	ci.SetWidth(60)
@@ -107,11 +115,12 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 		listName:     listName,
 		boardID:      boardID,
 		moveIndex:    listIndex,
-		titleEdit:    ti,
-		descEdit:     ta,
-		dueInput:     di,
-		pickerFilter: pf,
-		commentInput: ci,
+		titleEdit:      ti,
+		descEdit:       ta,
+		dueInput:       di,
+		pickerFilter:   pf,
+		labelNameInput: ln,
+		commentInput:   ci,
 		loadingCL:    true,
 		loadingAtt:   true,
 		loadingCom:   true,
@@ -200,6 +209,24 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		}
 		return m, nil
 
+	case LabelCreatedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error creating label: %v", msg.Err)
+			m.mode = cardAddLabel
+			return m, nil
+		}
+		m.boardLabels = append(m.boardLabels, msg.Label)
+		m.card.Labels = append(m.card.Labels, msg.Label)
+		m.statusMsg = "Label created"
+		m.mode = cardAddLabel
+		m.pickerFilter.SetValue("")
+		client := m.client
+		cardID := m.card.ID
+		labelID := msg.Label.ID
+		return m, func() tea.Msg {
+			return LabelToggledMsg{Err: client.AddLabelToCard(cardID, labelID)}
+		}
+
 	case ChecklistsFetchedMsg:
 		m.loadingCL = false
 		if msg.Err != nil {
@@ -269,6 +296,10 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 	case cardAddMember, cardAddLabel:
 		var cmd tea.Cmd
 		m.pickerFilter, cmd = m.pickerFilter.Update(msg)
+		return m, cmd
+	case cardCreateLabel:
+		var cmd tea.Cmd
+		m.labelNameInput, cmd = m.labelNameInput.Update(msg)
 		return m, cmd
 	case cardAddComment:
 		var cmd tea.Cmd
@@ -409,6 +440,12 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 					return LabelToggledMsg{Err: client.AddLabelToCard(cardID, labelID)}
 				}
 			}
+		case "ctrl+n":
+			m.mode = cardCreateLabel
+			m.labelNameInput.SetValue("")
+			m.labelNameInput.Focus()
+			m.labelColorIdx = 0
+			return m, textinput.Blink
 		case "esc":
 			m.mode = cardView
 			m.pickerFilter.SetValue("")
@@ -420,6 +457,49 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				m.labelIndex = 0
 			}
 			return m, cmd
+		}
+		return m, nil
+
+	case cardCreateLabel:
+		switch msg.String() {
+		case "enter":
+			m.mode = cardCreateLabelColor
+			m.labelNameInput.Blur()
+			return m, nil
+		case "esc":
+			m.mode = cardAddLabel
+			m.pickerFilter.SetValue("")
+			m.pickerFilter.Focus()
+			return m, textinput.Blink
+		default:
+			var cmd tea.Cmd
+			m.labelNameInput, cmd = m.labelNameInput.Update(msg)
+			return m, cmd
+		}
+
+	case cardCreateLabelColor:
+		switch msg.String() {
+		case "j", "down":
+			if m.labelColorIdx < len(TrelloColors)-1 {
+				m.labelColorIdx++
+			}
+		case "k", "up":
+			if m.labelColorIdx > 0 {
+				m.labelColorIdx--
+			}
+		case "enter":
+			name := strings.TrimSpace(m.labelNameInput.Value())
+			color := TrelloColors[m.labelColorIdx]
+			client := m.client
+			boardID := m.boardID
+			return m, func() tea.Msg {
+				label, err := client.CreateLabel(boardID, name, color)
+				return LabelCreatedMsg{Label: label, Err: err}
+			}
+		case "esc":
+			m.mode = cardCreateLabel
+			m.labelNameInput.Focus()
+			return m, textinput.Blink
 		}
 		return m, nil
 
@@ -987,7 +1067,31 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 				}
 			}
 		}
-		b.WriteString("\n" + helpStyle.Render("enter/space:toggle  esc:close"))
+		b.WriteString("\n" + helpStyle.Render("enter/space:toggle  ctrl+n:new label  esc:close"))
+
+	case cardCreateLabel:
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render("Create label") + "\n\n")
+		b.WriteString("Name: " + m.labelNameInput.View() + "\n\n")
+		b.WriteString(helpStyle.Render("enter:pick color  esc:cancel"))
+
+	case cardCreateLabelColor:
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		name := strings.TrimSpace(m.labelNameInput.Value())
+		if name == "" {
+			name = "(unnamed)"
+		}
+		b.WriteString(sT.Render("Pick color for: "+name) + "\n\n")
+		for i, c := range TrelloColors {
+			cursor := "  "
+			s := lipgloss.NewStyle()
+			if i == m.labelColorIdx {
+				cursor = "▸ "
+				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+			}
+			b.WriteString(cursor + labelColor(c).Render("● ") + s.Render(c) + "\n")
+		}
+		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:create  esc:back"))
 
 	case cardSetDue:
 		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)

@@ -229,6 +229,29 @@ func (c *Client) DownloadAttachment(cardID string, att Attachment) (string, erro
 	return tmp.Name(), nil
 }
 
+func (c *Client) CreateLabel(boardID, name, color string) (Label, error) {
+	var label Label
+	err := c.request("POST", "/labels", map[string]string{
+		"idBoard": boardID,
+		"name":    name,
+		"color":   color,
+	}, &label)
+	return label, err
+}
+
+func (c *Client) UpdateLabel(labelID, name, color string) (Label, error) {
+	var label Label
+	err := c.request("PUT", fmt.Sprintf("/labels/%s", labelID), map[string]string{
+		"name":  name,
+		"color": color,
+	}, &label)
+	return label, err
+}
+
+func (c *Client) DeleteLabel(labelID string) error {
+	return c.request("DELETE", fmt.Sprintf("/labels/%s", labelID), nil, nil)
+}
+
 func (c *Client) AddComment(cardID, text string) (Action, error) {
 	var action Action
 	err := c.request("POST", fmt.Sprintf("/cards/%s/actions/comments", cardID),
