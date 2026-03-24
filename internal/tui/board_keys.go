@@ -9,6 +9,12 @@ import (
 )
 
 func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	if m.mode == boardAddList || m.mode == boardRenameList {
+		return m.handleListInputKey(msg)
+	}
+	if m.mode == boardConfirmArchiveList {
+		return m.handleConfirmArchiveListKey(msg)
+	}
 	if m.mode == boardAddCard {
 		return m.handleAddCardKey(msg)
 	}
@@ -86,6 +92,31 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 			return m, m.fetchBoardLabels()
 		}
 		return m, nil
+	case "N":
+		m.mode = boardAddList
+		m.textInput.Placeholder = "List name..."
+		m.textInput.SetValue("")
+		m.textInput.Focus()
+		return m, textinput.Blink
+	case "R":
+		if len(m.lists) > 0 {
+			m.mode = boardRenameList
+			m.textInput.Placeholder = "List name..."
+			vis := m.visibleLists()
+			if m.activeList >= 0 && m.activeList < len(vis) {
+				m.textInput.SetValue(vis[m.activeList].Name)
+			}
+			m.textInput.Focus()
+			return m, textinput.Blink
+		}
+	case "C":
+		if len(m.lists) > 0 {
+			m.mode = boardConfirmArchiveList
+		}
+	case "{":
+		return m.moveListLeft()
+	case "}":
+		return m.moveListRight()
 	case "/":
 		m.mode = boardFilter
 		m.textInput.Placeholder = "title, description, member, label..."
@@ -422,6 +453,98 @@ func (m BoardModel) handleArchiveFilterKey(msg tea.KeyMsg) (BoardModel, tea.Cmd)
 	m.archiveCursor = 0
 	m.archiveScrollTop = 0
 	return m, cmd
+}
+
+func (m BoardModel) handleListInputKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		name := strings.TrimSpace(m.textInput.Value())
+		if name == "" {
+			m.mode = boardNav
+			return m, nil
+		}
+		if m.mode == boardAddList {
+			m.mode = boardNav
+			return m, m.createList(name)
+		}
+		// boardRenameList
+		listID := m.currentListID()
+		m.mode = boardNav
+		return m, m.renameList(listID, name)
+	case "esc":
+		m.mode = boardNav
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(msg)
+	return m, cmd
+}
+
+func (m BoardModel) handleConfirmArchiveListKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	switch msg.String() {
+	case "y", "Y":
+		listID := m.currentListID()
+		if listID != "" {
+			m.mode = boardNav
+			return m, m.archiveList(listID)
+		}
+		m.mode = boardNav
+	case "n", "N", "esc":
+		m.mode = boardNav
+	}
+	return m, nil
+}
+
+func (m BoardModel) moveListLeft() (BoardModel, tea.Cmd) {
+	vis := m.visibleLists()
+	if m.activeList <= 0 || len(vis) < 2 {
+		return m, nil
+	}
+	listID := vis[m.activeList].ID
+	fullIdx := m.fullListIndex(listID)
+	if fullIdx <= 0 {
+		return m, nil
+	}
+
+	m.lists[fullIdx], m.lists[fullIdx-1] = m.lists[fullIdx-1], m.lists[fullIdx]
+	m.activeList--
+	m.ensureListVisible()
+
+	var newPos float64
+	if fullIdx-1 == 0 {
+		newPos = m.lists[1].Pos / 2
+	} else {
+		newPos = (m.lists[fullIdx-2].Pos + m.lists[fullIdx].Pos) / 2
+	}
+
+	return m, m.reorderList(listID, newPos)
+}
+
+func (m BoardModel) moveListRight() (BoardModel, tea.Cmd) {
+	vis := m.visibleLists()
+	if m.activeList >= len(vis)-1 || len(vis) < 2 {
+		return m, nil
+	}
+	listID := vis[m.activeList].ID
+	fullIdx := m.fullListIndex(listID)
+	if fullIdx < 0 || fullIdx >= len(m.lists)-1 {
+		return m, nil
+	}
+
+	m.lists[fullIdx], m.lists[fullIdx+1] = m.lists[fullIdx+1], m.lists[fullIdx]
+	m.activeList++
+	m.ensureListVisible()
+
+	var newPos float64
+	last := len(m.lists) - 1
+	if fullIdx+1 == last {
+		newPos = m.lists[last-1].Pos + 65536
+	} else {
+		newPos = (m.lists[fullIdx].Pos + m.lists[fullIdx+2].Pos) / 2
+	}
+
+	return m, m.reorderList(listID, newPos)
 }
 
 func (m *BoardModel) ensureArchiveCursorVisible() {

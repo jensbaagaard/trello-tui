@@ -26,6 +26,9 @@ const (
 	boardLabelConfirmDelete
 	boardArchive
 	boardArchiveFilter
+	boardAddList
+	boardRenameList
+	boardConfirmArchiveList
 )
 
 type BoardModel struct {
@@ -191,6 +194,39 @@ func (m BoardModel) scheduleAutoRefresh() tea.Cmd {
 	})
 }
 
+func (m BoardModel) createList(name string) tea.Cmd {
+	client := m.client
+	boardID := m.board.ID
+	return func() tea.Msg {
+		list, err := client.CreateList(boardID, name)
+		return ListCreatedMsg{List: list, Err: err}
+	}
+}
+
+func (m BoardModel) renameList(listID, name string) tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		list, err := client.UpdateList(listID, map[string]string{"name": name})
+		return ListUpdatedMsg{List: list, Err: err}
+	}
+}
+
+func (m BoardModel) archiveList(listID string) tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		err := client.ArchiveList(listID)
+		return ListArchivedMsg{ListID: listID, Err: err}
+	}
+}
+
+func (m BoardModel) reorderList(listID string, newPos float64) tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		list, err := client.UpdateList(listID, map[string]string{"pos": fmt.Sprintf("%f", newPos)})
+		return ListUpdatedMsg{List: list, Err: err}
+	}
+}
+
 // ── Update ────────────────────────────────────────────────────────────────────
 
 func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
@@ -321,6 +357,54 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 			return m, nil
 		}
 		m.archivedCards = msg.Cards
+		return m, nil
+
+	case ListCreatedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error creating list: %v", msg.Err)
+			return m, nil
+		}
+		m.lists = append(m.lists, msg.List)
+		m.cardsByList[msg.List.ID] = []trello.Card{}
+		m.activeList = len(m.lists) - 1
+		m.activeCard = 0
+		m.scrollTop = 0
+		m.ensureListVisible()
+		m.statusMsg = "List created"
+		return m, nil
+
+	case ListUpdatedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error updating list: %v", msg.Err)
+			return m, nil
+		}
+		for i, l := range m.lists {
+			if l.ID == msg.List.ID {
+				m.lists[i] = msg.List
+				break
+			}
+		}
+		m.statusMsg = "List updated"
+		return m, nil
+
+	case ListArchivedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error archiving list: %v", msg.Err)
+			return m, nil
+		}
+		for i, l := range m.lists {
+			if l.ID == msg.ListID {
+				m.lists = append(m.lists[:i], m.lists[i+1:]...)
+				delete(m.cardsByList, msg.ListID)
+				break
+			}
+		}
+		if m.activeList >= len(m.lists) && m.activeList > 0 {
+			m.activeList--
+		}
+		m.clampCardCursor()
+		m.ensureListVisible()
+		m.statusMsg = "List archived"
 		return m, nil
 
 	case CardRestoredMsg:

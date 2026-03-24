@@ -303,6 +303,26 @@ func (c *Client) DeleteAttachment(cardID, attachmentID string) error {
 	return c.request("DELETE", fmt.Sprintf("/cards/%s/attachments/%s", cardID, attachmentID), nil, nil)
 }
 
+func (c *Client) CreateList(boardID, name string) (List, error) {
+	var list List
+	err := c.request("POST", fmt.Sprintf("/boards/%s/lists", boardID), map[string]string{
+		"name": name,
+	}, &list)
+	return list, err
+}
+
+func (c *Client) UpdateList(listID string, fields map[string]string) (List, error) {
+	var list List
+	err := c.request("PUT", fmt.Sprintf("/lists/%s", listID), fields, &list)
+	return list, err
+}
+
+func (c *Client) ArchiveList(listID string) error {
+	return c.request("PUT", fmt.Sprintf("/lists/%s/closed", listID), map[string]string{
+		"value": "true",
+	}, nil)
+}
+
 func (c *Client) SearchCards(query string, page int) ([]SearchCard, error) {
 	var result SearchResult
 	params := url.Values{

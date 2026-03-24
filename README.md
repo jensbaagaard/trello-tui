@@ -108,6 +108,10 @@ trello-tui --version                # print version and exit
 | `<` / `>`        | Move card to first / last list       |
 | `a`              | View archived cards                  |
 | `L`              | Manage board labels                  |
+| `N`              | New list                             |
+| `R`              | Rename current list                  |
+| `C`              | Archive current list                 |
+| `{` / `}`        | Move list left / right               |
 | `/`              | Filter cards                         |
 | `enter`          | Open card detail                     |
 | `r`              | Refresh                              |
@@ -193,7 +197,7 @@ Keys marked with `*` match Trello's native shortcuts.
 - [x] CLI flags: `--version`, `--board=<name>`, `--auto-refresh=<seconds>`
 - [x] Global card search across boards
 - [x] View and restore archived cards
-- [ ] List management in board view (add, rename, delete, reorder)
+- [x] List management in board view (add, rename, archive, reorder)
 
 ## License
 

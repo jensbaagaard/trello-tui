@@ -95,6 +95,10 @@ func (m BoardModel) View() string {
 		status = "Filter: " + m.textInput.View()
 	} else if m.mode == boardAddCard {
 		status = "New card: " + m.textInput.View()
+	} else if m.mode == boardAddList {
+		status = "New list: " + m.textInput.View()
+	} else if m.mode == boardRenameList {
+		status = "Rename list: " + m.textInput.View()
 	} else if m.mode == boardConfirmArchive {
 		card := m.selectedCard()
 		name := ""
@@ -102,12 +106,19 @@ func (m BoardModel) View() string {
 			name = card.Name
 		}
 		status = errorStyle.Render(fmt.Sprintf("Archive \"%s\"? (y/n)", name))
+	} else if m.mode == boardConfirmArchiveList {
+		vis := m.visibleLists()
+		name := ""
+		if m.activeList >= 0 && m.activeList < len(vis) {
+			name = vis[m.activeList].Name
+		}
+		status = errorStyle.Render(fmt.Sprintf("Archive list \"%s\"? (y/n)", name))
 	} else if m.statusMsg != "" {
 		status = m.statusMsg
 	} else if m.filterText != "" {
 		status = helpStyle.Render(fmt.Sprintf("filter: %s  ←→:lists  j/k:cards  /:edit filter  esc:clear filter", m.filterText))
 	} else {
-		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  a:archived  L:labels  enter:open  /:filter  r:refresh  esc:back")
+		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  a:archived  L:labels  N:new list  R:rename list  C:archive list  {/}:move list  enter:open  /:filter  r:refresh  esc:back")
 	}
 
 	header := titleStyle.Render(m.board.Name) + scrollHint
