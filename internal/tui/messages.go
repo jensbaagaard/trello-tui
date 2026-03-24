@@ -174,3 +174,13 @@ type VersionCheckMsg struct {
 }
 
 type AutoRefreshTickMsg struct{}
+
+type SearchResultsMsg struct {
+	Cards []trello.SearchCard
+	Err   error
+}
+
+type SearchCardListsFetchedMsg struct {
+	Lists []trello.List
+	Err   error
+}

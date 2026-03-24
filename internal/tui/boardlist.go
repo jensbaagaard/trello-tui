@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 
+	bkey "github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -41,6 +42,12 @@ func NewBoardListModel(client *trello.Client) BoardListModel {
 	l.Styles.Title = titleStyle
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
+	l.AdditionalShortHelpKeys = func() []bkey.Binding {
+		return []bkey.Binding{
+			bkey.NewBinding(bkey.WithKeys("s"), bkey.WithHelp("s", "search")),
+		}
+	}
+	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
 	return BoardListModel{
 		list:    l,

@@ -15,6 +15,7 @@ const (
 	screenBoardList screen = iota
 	screenBoard
 	screenCard
+	screenSearch
 )
 
 type AppModel struct {
@@ -23,6 +24,8 @@ type AppModel struct {
 	boardList        BoardListModel
 	board            BoardModel
 	card             CardModel
+	search           SearchModel
+	returnToSearch   bool
 	width            int
 	height           int
 	version          string
@@ -102,6 +105,32 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+	case SearchCardListsFetchedMsg:
+		if m.screen == screenSearch {
+			m.search, _ = m.search.Update(msg)
+			if m.search.pendingCard != nil && m.search.pendingLists != nil {
+				card := m.search.pendingCard.ToCard()
+				lists := m.search.pendingLists
+				listIndex := 0
+				for i, l := range lists {
+					if l.ID == card.IDList {
+						listIndex = i
+						break
+					}
+				}
+				m.card = NewCardModel(m.client, card, lists, listIndex)
+				m.returnToSearch = true
+				m.screen = screenCard
+				return m, tea.Batch(
+					m.card.Init(),
+					func() tea.Msg {
+						return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+					},
+				)
+			}
+			return m, nil
+		}
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
@@ -109,6 +138,15 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q":
 			if m.screen == screenBoardList && !m.boardList.IsFiltering() {
 				return m, tea.Quit
+			}
+		case "s":
+			if m.screen == screenBoardList && !m.boardList.IsFiltering() {
+				m.search = NewSearchModel(m.client)
+				m.screen = screenSearch
+				return m, tea.Batch(
+					m.search.Init(),
+					func() tea.Msg { return tea.WindowSizeMsg{Width: m.width, Height: m.height} },
+				)
 			}
 		case "enter":
 			if m.screen == screenBoardList && !m.boardList.IsFiltering() {
@@ -150,10 +188,22 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.card.mode != cardView {
 					break
 				}
+				if m.returnToSearch {
+					m.returnToSearch = false
+					m.search.pendingCard = nil
+					m.search.pendingLists = nil
+					m.screen = screenSearch
+					return m, nil
+				}
 				m.updateCardInBoard(m.card.card)
 				m.board.boardLabels = m.card.boardLabels
 				m.screen = screenBoard
 				return m, nil
+			case screenSearch:
+				if !m.search.textInput.Focused() || !m.search.searched {
+					m.screen = screenBoardList
+					return m, nil
+				}
 			case screenBoard:
 				if m.board.mode != boardNav {
 					break
@@ -180,6 +230,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenCard:
 		var cmd tea.Cmd
 		m.card, cmd = m.card.Update(msg)
+		return m, cmd
+	case screenSearch:
+		var cmd tea.Cmd
+		m.search, cmd = m.search.Update(msg)
 		return m, cmd
 	}
 
@@ -235,6 +289,8 @@ func (m AppModel) View() string {
 		content = m.board.View()
 	case screenCard:
 		content = m.card.View()
+	case screenSearch:
+		content = m.search.View()
 	}
 	if m.updateNotice != "" {
 		content += "\n" + updateNoticeStyle.Render(m.updateNotice)

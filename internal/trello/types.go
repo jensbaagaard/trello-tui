@@ -107,3 +107,40 @@ type Action struct {
 	Data          ActionData `json:"data"`
 	MemberCreator Member     `json:"memberCreator"`
 }
+
+type SearchResult struct {
+	Cards []SearchCard `json:"cards"`
+}
+
+type SearchCard struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Desc        string   `json:"desc"`
+	IDBoard     string   `json:"idBoard"`
+	IDList      string   `json:"idList"`
+	Closed      bool     `json:"closed"`
+	Due         string   `json:"due"`
+	DueComplete bool     `json:"dueComplete"`
+	Labels      []Label  `json:"labels"`
+	ShortURL    string   `json:"shortUrl"`
+	Members     []Member `json:"members"`
+	Badges      Badges   `json:"badges"`
+	Board       Board    `json:"board"`
+	List        List     `json:"list"`
+}
+
+func (sc SearchCard) ToCard() Card {
+	return Card{
+		ID:          sc.ID,
+		Name:        sc.Name,
+		Desc:        sc.Desc,
+		IDList:      sc.IDList,
+		Closed:      sc.Closed,
+		Due:         sc.Due,
+		DueComplete: sc.DueComplete,
+		Labels:      sc.Labels,
+		ShortURL:    sc.ShortURL,
+		Members:     sc.Members,
+		Badges:      sc.Badges,
+	}
+}

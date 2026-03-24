@@ -302,3 +302,19 @@ func (c *Client) DeleteChecklist(checklistID string) error {
 func (c *Client) DeleteAttachment(cardID, attachmentID string) error {
 	return c.request("DELETE", fmt.Sprintf("/cards/%s/attachments/%s", cardID, attachmentID), nil, nil)
 }
+
+func (c *Client) SearchCards(query string, page int) ([]SearchCard, error) {
+	var result SearchResult
+	params := url.Values{
+		"query":        {query},
+		"modelTypes":   {"cards"},
+		"card_board":   {"true"},
+		"card_list":    {"true"},
+		"card_members": {"true"},
+		"cards_limit":  {"20"},
+		"cards_page":   {fmt.Sprintf("%d", page)},
+		"partial":      {"true"},
+	}
+	err := c.get("/search", params, &result)
+	return result.Cards, err
+}
