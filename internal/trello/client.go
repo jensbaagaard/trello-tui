@@ -158,3 +158,32 @@ func (c *Client) AddLabelToCard(cardID, labelID string) error {
 func (c *Client) RemoveLabelFromCard(cardID, labelID string) error {
 	return c.request("DELETE", fmt.Sprintf("/cards/%s/idLabels/%s", cardID, labelID), nil, nil)
 }
+
+func (c *Client) GetChecklists(cardID string) ([]Checklist, error) {
+	var checklists []Checklist
+	err := c.get(fmt.Sprintf("/cards/%s/checklists", cardID), nil, &checklists)
+	return checklists, err
+}
+
+func (c *Client) GetComments(cardID string) ([]Comment, error) {
+	var comments []Comment
+	params := url.Values{"filter": {"commentCard"}}
+	err := c.get(fmt.Sprintf("/cards/%s/actions", cardID), params, &comments)
+	return comments, err
+}
+
+func (c *Client) ToggleCheckItem(cardID, checkItemID string, complete bool) error {
+	state := "incomplete"
+	if complete {
+		state = "complete"
+	}
+	return c.request("PUT", fmt.Sprintf("/cards/%s/checkItem/%s", cardID, checkItemID),
+		map[string]string{"state": state}, nil)
+}
+
+func (c *Client) AddComment(cardID, text string) (Comment, error) {
+	var comment Comment
+	err := c.request("POST", fmt.Sprintf("/cards/%s/actions/comments", cardID),
+		map[string]string{"text": text}, &comment)
+	return comment, err
+}

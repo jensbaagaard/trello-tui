@@ -79,9 +79,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.card = NewCardModel(m.client, *card, m.board.lists, fullListIndex)
 					m.screen = screenCard
-					return m, func() tea.Msg {
-						return tea.WindowSizeMsg{Width: m.width, Height: m.height}
-					}
+					return m, tea.Batch(
+						m.card.Init(),
+						func() tea.Msg {
+							return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+						},
+					)
 				}
 			}
 		case "esc":

@@ -66,3 +66,22 @@ type MemberToggledMsg struct {
 type LabelToggledMsg struct {
 	Err error
 }
+
+type ChecklistsFetchedMsg struct {
+	Checklists []trello.Checklist
+	Err        error
+}
+
+type CommentsFetchedMsg struct {
+	Comments []trello.Comment
+	Err      error
+}
+
+type CheckItemToggledMsg struct {
+	Err error
+}
+
+type CommentAddedMsg struct {
+	Comment trello.Comment
+	Err     error
+}

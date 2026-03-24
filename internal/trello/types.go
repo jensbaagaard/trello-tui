@@ -39,3 +39,26 @@ type Member struct {
 	FullName string `json:"fullName"`
 	Username string `json:"username"`
 }
+
+type CheckItem struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	State string `json:"state"` // "complete" or "incomplete"
+}
+
+type Checklist struct {
+	ID         string      `json:"id"`
+	Name       string      `json:"name"`
+	CheckItems []CheckItem `json:"checkItems"`
+}
+
+type CommentData struct {
+	Text string `json:"text"`
+}
+
+type Comment struct {
+	ID            string      `json:"id"`
+	Date          string      `json:"date"`
+	Data          CommentData `json:"data"`
+	MemberCreator Member      `json:"memberCreator"`
+}

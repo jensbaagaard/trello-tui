@@ -22,7 +22,12 @@ const (
 	cardAddMember
 	cardAddLabel
 	cardSetDue
+	cardChecklistPane
+	cardCommentsPane
+	cardAddComment
 )
+
+type checkRef struct{ cl, it int }
 
 type CardModel struct {
 	client       *trello.Client
@@ -33,17 +38,24 @@ type CardModel struct {
 	boardID      string
 	boardMembers []trello.Member
 	boardLabels  []trello.Label
+	checklists   []trello.Checklist
+	comments     []trello.Comment
 	mode         cardMode
 	titleEdit    textinput.Model
 	descEdit     textarea.Model
 	dueInput     textinput.Model
 	pickerFilter textinput.Model
+	commentInput textarea.Model
 	moveIndex    int
 	memberIndex  int
 	labelIndex   int
+	checkItemIdx int
+	commentIdx   int
 	width        int
 	height       int
 	statusMsg    string
+	loadingCL    bool
+	loadingCom   bool
 }
 
 func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, listIndex int) CardModel {
@@ -64,48 +76,57 @@ func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, 
 	pf.Placeholder = "type to filter..."
 	pf.CharLimit = 50
 
+	ci := textarea.New()
+	ci.Placeholder = "Write a comment..."
+	ci.SetWidth(60)
+	ci.SetHeight(4)
+
 	listName := ""
 	if listIndex >= 0 && listIndex < len(lists) {
 		listName = lists[listIndex].Name
 	}
-
 	boardID := ""
 	if len(lists) > 0 {
 		boardID = lists[0].IDBoard
 	}
 
 	return CardModel{
-		client:    client,
-		card:      card,
-		lists:     lists,
-		listIndex: listIndex,
-		listName:  listName,
-		boardID:   boardID,
-		moveIndex: listIndex,
+		client:       client,
+		card:         card,
+		lists:        lists,
+		listIndex:    listIndex,
+		listName:     listName,
+		boardID:      boardID,
+		moveIndex:    listIndex,
 		titleEdit:    ti,
 		descEdit:     ta,
 		dueInput:     di,
 		pickerFilter: pf,
+		commentInput: ci,
+		loadingCL:    true,
+		loadingCom:   true,
 	}
 }
 
 func (m CardModel) Init() tea.Cmd {
-	return nil
+	return tea.Batch(m.fetchChecklists(), m.fetchComments())
 }
+
+// ── Update ────────────────────────────────────────────────────────────────────
 
 func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.descEdit.SetWidth(msg.Width - 4)
+		m.descEdit.SetWidth(msg.Width - 10)
+		m.commentInput.SetWidth(msg.Width - 10)
 
 	case CardUpdatedMsg:
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 			return m, nil
 		}
-		// Preserve members/labels from in-memory state since UpdateCard response may omit them
 		members := m.card.Members
 		labels := m.card.Labels
 		m.card = msg.Card
@@ -115,7 +136,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		if len(m.card.Labels) == 0 {
 			m.card.Labels = labels
 		}
-		m.statusMsg = "Card updated"
+		m.statusMsg = "Saved"
 		return m, nil
 
 	case CardMovedMsg:
@@ -169,63 +190,70 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		}
 		return m, nil
 
+	case ChecklistsFetchedMsg:
+		m.loadingCL = false
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error fetching checklists: %v", msg.Err)
+			return m, nil
+		}
+		m.checklists = msg.Checklists
+		return m, nil
+
+	case CommentsFetchedMsg:
+		m.loadingCom = false
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error fetching comments: %v", msg.Err)
+			return m, nil
+		}
+		m.comments = msg.Comments
+		return m, nil
+
+	case CheckItemToggledMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
+		}
+		return m, nil
+
+	case CommentAddedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
+			return m, nil
+		}
+		m.comments = append([]trello.Comment{msg.Comment}, m.comments...)
+		m.statusMsg = "Comment added"
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
 
-	if m.mode == cardEditTitle {
+	// Forward ticks to active input
+	switch m.mode {
+	case cardEditTitle:
 		var cmd tea.Cmd
 		m.titleEdit, cmd = m.titleEdit.Update(msg)
 		return m, cmd
-	}
-	if m.mode == cardEditDesc {
+	case cardEditDesc:
 		var cmd tea.Cmd
 		m.descEdit, cmd = m.descEdit.Update(msg)
 		return m, cmd
-	}
-	if m.mode == cardSetDue {
+	case cardSetDue:
 		var cmd tea.Cmd
 		m.dueInput, cmd = m.dueInput.Update(msg)
 		return m, cmd
-	}
-	if m.mode == cardAddMember || m.mode == cardAddLabel {
+	case cardAddMember, cardAddLabel:
 		var cmd tea.Cmd
 		m.pickerFilter, cmd = m.pickerFilter.Update(msg)
 		return m, cmd
+	case cardAddComment:
+		var cmd tea.Cmd
+		m.commentInput, cmd = m.commentInput.Update(msg)
+		return m, cmd
 	}
-
 	return m, nil
 }
 
-func (m CardModel) filteredMembers() []trello.Member {
-	q := strings.ToLower(m.pickerFilter.Value())
-	if q == "" {
-		return m.boardMembers
-	}
-	var result []trello.Member
-	for _, member := range m.boardMembers {
-		if strings.Contains(strings.ToLower(member.FullName), q) ||
-			strings.Contains(strings.ToLower(member.Username), q) {
-			result = append(result, member)
-		}
-	}
-	return result
-}
-
-func (m CardModel) filteredLabels() []trello.Label {
-	q := strings.ToLower(m.pickerFilter.Value())
-	if q == "" {
-		return m.boardLabels
-	}
-	var result []trello.Label
-	for _, label := range m.boardLabels {
-		if strings.Contains(strings.ToLower(label.Name), q) ||
-			strings.Contains(strings.ToLower(label.Color), q) {
-			result = append(result, label)
-		}
-	}
-	return result
-}
+// ── Key handling ──────────────────────────────────────────────────────────────
 
 func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 	switch m.mode {
@@ -285,8 +313,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 	case cardAddMember:
 		switch msg.String() {
 		case "j", "down":
-			filtered := m.filteredMembers()
-			if m.memberIndex < len(filtered)-1 {
+			if m.memberIndex < len(m.filteredMembers())-1 {
 				m.memberIndex++
 			}
 		case "k", "up":
@@ -330,8 +357,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 	case cardAddLabel:
 		switch msg.String() {
 		case "j", "down":
-			filtered := m.filteredLabels()
-			if m.labelIndex < len(filtered)-1 {
+			if m.labelIndex < len(m.filteredLabels())-1 {
 				m.labelIndex++
 			}
 		case "k", "up":
@@ -399,8 +425,95 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 		}
 		return m, nil
 
-	default:
+	case cardChecklistPane:
+		refs := m.allCheckItemRefs()
 		switch msg.String() {
+		case "j", "down":
+			if m.checkItemIdx < len(refs)-1 {
+				m.checkItemIdx++
+			}
+		case "k", "up":
+			if m.checkItemIdx > 0 {
+				m.checkItemIdx--
+			}
+		case "enter", " ":
+			if len(refs) > 0 && m.checkItemIdx < len(refs) {
+				r := refs[m.checkItemIdx]
+				item := m.checklists[r.cl].CheckItems[r.it]
+				newComplete := item.State != "complete"
+				if newComplete {
+					m.checklists[r.cl].CheckItems[r.it].State = "complete"
+				} else {
+					m.checklists[r.cl].CheckItems[r.it].State = "incomplete"
+				}
+				client := m.client
+				cardID := m.card.ID
+				checkItemID := item.ID
+				return m, func() tea.Msg {
+					return CheckItemToggledMsg{Err: client.ToggleCheckItem(cardID, checkItemID, newComplete)}
+				}
+			}
+		case "tab":
+			m.mode = cardCommentsPane
+		case "esc":
+			m.mode = cardView
+		}
+		return m, nil
+
+	case cardCommentsPane:
+		switch msg.String() {
+		case "j", "down":
+			if m.commentIdx < len(m.comments)-1 {
+				m.commentIdx++
+			}
+		case "k", "up":
+			if m.commentIdx > 0 {
+				m.commentIdx--
+			}
+		case "n":
+			m.mode = cardAddComment
+			m.commentInput.SetValue("")
+			m.commentInput.Focus()
+			return m, textarea.Blink
+		case "tab":
+			m.mode = cardView
+		case "esc":
+			m.mode = cardView
+		}
+		return m, nil
+
+	case cardAddComment:
+		switch msg.String() {
+		case "ctrl+s":
+			text := strings.TrimSpace(m.commentInput.Value())
+			if text == "" {
+				m.mode = cardCommentsPane
+				return m, nil
+			}
+			m.mode = cardCommentsPane
+			client := m.client
+			cardID := m.card.ID
+			return m, func() tea.Msg {
+				comment, err := client.AddComment(cardID, text)
+				return CommentAddedMsg{Comment: comment, Err: err}
+			}
+		case "esc":
+			m.mode = cardCommentsPane
+		default:
+			var cmd tea.Cmd
+			m.commentInput, cmd = m.commentInput.Update(msg)
+			return m, cmd
+		}
+		return m, nil
+
+	default: // cardView — info pane active
+		switch msg.String() {
+		case "tab":
+			if len(m.checklists) > 0 {
+				m.mode = cardChecklistPane
+			} else {
+				m.mode = cardCommentsPane
+			}
 		case "t", "e":
 			m.mode = cardEditTitle
 			m.titleEdit.SetValue(m.card.Name)
@@ -466,13 +579,12 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				m.moveIndex = len(m.lists) - 1
 				return m, m.moveToList(len(m.lists) - 1)
 			}
-		case "c":
-			m.statusMsg = "Use board view to archive cards"
 		}
 	}
-
 	return m, nil
 }
+
+// ── Commands ──────────────────────────────────────────────────────────────────
 
 func (m CardModel) moveToList(targetIndex int) tea.Cmd {
 	client := m.client
@@ -512,6 +624,66 @@ func (m CardModel) fetchBoardLabels() tea.Cmd {
 	}
 }
 
+func (m CardModel) fetchChecklists() tea.Cmd {
+	client := m.client
+	cardID := m.card.ID
+	return func() tea.Msg {
+		cl, err := client.GetChecklists(cardID)
+		return ChecklistsFetchedMsg{Checklists: cl, Err: err}
+	}
+}
+
+func (m CardModel) fetchComments() tea.Cmd {
+	client := m.client
+	cardID := m.card.ID
+	return func() tea.Msg {
+		comments, err := client.GetComments(cardID)
+		return CommentsFetchedMsg{Comments: comments, Err: err}
+	}
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+func (m CardModel) allCheckItemRefs() []checkRef {
+	var refs []checkRef
+	for ci, cl := range m.checklists {
+		for ii := range cl.CheckItems {
+			refs = append(refs, checkRef{ci, ii})
+		}
+	}
+	return refs
+}
+
+func (m CardModel) filteredMembers() []trello.Member {
+	q := strings.ToLower(m.pickerFilter.Value())
+	if q == "" {
+		return m.boardMembers
+	}
+	var result []trello.Member
+	for _, member := range m.boardMembers {
+		if strings.Contains(strings.ToLower(member.FullName), q) ||
+			strings.Contains(strings.ToLower(member.Username), q) {
+			result = append(result, member)
+		}
+	}
+	return result
+}
+
+func (m CardModel) filteredLabels() []trello.Label {
+	q := strings.ToLower(m.pickerFilter.Value())
+	if q == "" {
+		return m.boardLabels
+	}
+	var result []trello.Label
+	for _, label := range m.boardLabels {
+		if strings.Contains(strings.ToLower(label.Name), q) ||
+			strings.Contains(strings.ToLower(label.Color), q) {
+			result = append(result, label)
+		}
+	}
+	return result
+}
+
 func (m CardModel) isOnCard(memberID string) bool {
 	for _, cm := range m.card.Members {
 		if cm.ID == memberID {
@@ -530,144 +702,144 @@ func (m CardModel) isLabelOnCard(labelID string) bool {
 	return false
 }
 
+// ── View ──────────────────────────────────────────────────────────────────────
+
 func (m CardModel) View() string {
-	contentWidth := m.width - 8
-	if contentWidth < 40 {
-		contentWidth = 40
+	w := m.width
+	if w < 44 {
+		w = 44
 	}
-	if contentWidth > 100 {
-		contentWidth = 100
+
+	available := m.height
+	if available < 24 {
+		available = 24
 	}
+	showChecklist := m.loadingCL || len(m.checklists) > 0
+
+	var pane1H, pane2H, pane3H int
+	if showChecklist {
+		pane1H = available * 40 / 100
+		pane2H = available * 30 / 100
+		pane3H = available - pane1H - pane2H - 1
+		if pane1H < 9 {
+			pane1H = 9
+		}
+		if pane2H < 6 {
+			pane2H = 6
+		}
+		if pane3H < 6 {
+			pane3H = 6
+		}
+	} else {
+		pane1H = available * 55 / 100
+		pane3H = available - pane1H - 1
+		if pane1H < 9 {
+			pane1H = 9
+		}
+		if pane3H < 6 {
+			pane3H = 6
+		}
+	}
+
+	box1 := m.renderInfoPane(w, pane1H)
+	var box2 string
+	if showChecklist {
+		box2 = m.renderChecklistPane(w, pane2H)
+	}
+	box3 := m.renderCommentsPane(w, pane3H)
+
+	var statusBar string
+	if m.statusMsg != "" {
+		statusBar = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg)
+	} else {
+		statusBar = m.helpLine()
+	}
+
+	body := box1
+	if box2 != "" {
+		body += "\n" + box2
+	}
+	body += "\n" + box3 + "\n" + statusBar
+	return lipgloss.NewStyle().Padding(0, 1).Render(body)
+}
+
+func (m CardModel) renderInfoPane(width, height int) string {
+	active := m.mode != cardChecklistPane && m.mode != cardCommentsPane && m.mode != cardAddComment
 
 	var b strings.Builder
 
-	// Header: list name as breadcrumb
-	b.WriteString(helpStyle.Render("in " + m.listName))
-	b.WriteString("\n\n")
-
-	// Card title
-	cardTitleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Width(contentWidth)
-	b.WriteString(cardTitleStyle.Render(m.card.Name))
-	b.WriteString("\n")
-
-	// Labels
-	if len(m.card.Labels) > 0 {
-		b.WriteString("\n")
-		var labels []string
-		for _, l := range m.card.Labels {
-			name := l.Name
-			if name == "" {
-				name = l.Color
-			}
-			labels = append(labels, labelColor(l.Color).Render(name))
-		}
-		b.WriteString(strings.Join(labels, "  "))
-		b.WriteString("\n")
-	}
-
-	// Due date
-	if m.card.Due != "" {
-		label, style := formatDue(m.card.Due, m.card.DueComplete)
-		if label != "" {
-			b.WriteString("\n")
-			b.WriteString(style.Render("Due: " + label))
-			b.WriteString("\n")
-		}
-	}
-
-	// Members
-	if len(m.card.Members) > 0 {
-		b.WriteString("\n")
-		var names []string
-		for _, member := range m.card.Members {
-			names = append(names, member.FullName)
-		}
-		b.WriteString(helpStyle.Render("Members: " + strings.Join(names, ", ")))
-		b.WriteString("\n")
-	}
-
-	// URL
-	if m.card.ShortURL != "" {
-		b.WriteString("\n")
-		b.WriteString(helpStyle.Render(m.card.ShortURL))
-		b.WriteString("\n")
-	}
-
-	b.WriteString("\n")
-
-	divider := helpStyle.Render(strings.Repeat("─", contentWidth))
-	sectionTitle := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
-
 	switch m.mode {
-	case cardEditDesc:
-		b.WriteString("Description (esc to save):\n\n")
-		b.WriteString(m.descEdit.View())
 	case cardEditTitle:
-		b.WriteString("Edit title (enter to save, esc to cancel):\n\n")
+		b.WriteString("Edit title (enter:save  esc:cancel):\n\n")
 		b.WriteString(m.titleEdit.View())
+
+	case cardEditDesc:
+		b.WriteString("Description (esc:save):\n\n")
+		b.WriteString(m.descEdit.View())
+
 	case cardMoveList:
-		b.WriteString(sectionTitle.Render("Move to list"))
-		b.WriteString("\n" + divider + "\n\n")
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render("Move to list") + "\n\n")
 		for i, l := range m.lists {
 			cursor := "  "
-			style := lipgloss.NewStyle()
+			s := lipgloss.NewStyle()
 			if i == m.moveIndex {
 				cursor = "▸ "
-				style = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
 			}
 			suffix := ""
 			if i == m.listIndex {
 				suffix = helpStyle.Render("  (current)")
 			}
-			b.WriteString(cursor + style.Render(l.Name) + suffix + "\n")
+			b.WriteString(cursor + s.Render(l.Name) + suffix + "\n")
 		}
+		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:move  esc:cancel"))
+
 	case cardAddMember:
-		b.WriteString(sectionTitle.Render("Add / remove member"))
-		b.WriteString("\n" + divider + "\n")
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render("Add / remove member") + "\n")
 		b.WriteString(m.pickerFilter.View() + "\n\n")
 		if len(m.boardMembers) == 0 {
-			b.WriteString(helpStyle.Render("Loading...") + "\n")
+			b.WriteString(helpStyle.Render("Loading..."))
 		} else {
 			filtered := m.filteredMembers()
 			if len(filtered) == 0 {
-				b.WriteString(helpStyle.Render("No matches") + "\n")
+				b.WriteString(helpStyle.Render("No matches"))
 			} else {
 				for i, member := range filtered {
 					cursor := "  "
-					style := lipgloss.NewStyle()
+					s := lipgloss.NewStyle()
 					if i == m.memberIndex {
 						cursor = "▸ "
-						style = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+						s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
 					}
 					check := "  "
 					if m.isOnCard(member.ID) {
 						check = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓ ")
 					}
-					b.WriteString(cursor + check + style.Render(member.FullName) + "\n")
+					b.WriteString(cursor + check + s.Render(member.FullName) + "\n")
 				}
 			}
 		}
-		b.WriteString("\n" + helpStyle.Render("enter/space: toggle  esc: close"))
+		b.WriteString("\n" + helpStyle.Render("enter/space:toggle  esc:close"))
+
 	case cardAddLabel:
-		b.WriteString(sectionTitle.Render("Add / remove label"))
-		b.WriteString("\n" + divider + "\n")
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render("Add / remove label") + "\n")
 		b.WriteString(m.pickerFilter.View() + "\n\n")
 		if len(m.boardLabels) == 0 {
-			b.WriteString(helpStyle.Render("Loading...") + "\n")
+			b.WriteString(helpStyle.Render("Loading..."))
 		} else {
 			filtered := m.filteredLabels()
 			if len(filtered) == 0 {
-				b.WriteString(helpStyle.Render("No matches") + "\n")
+				b.WriteString(helpStyle.Render("No matches"))
 			} else {
 				for i, label := range filtered {
 					cursor := "  "
-					rowStyle := lipgloss.NewStyle()
+					rs := lipgloss.NewStyle()
 					if i == m.labelIndex {
 						cursor = "▸ "
-						rowStyle = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+						rs = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
 					}
 					check := "  "
 					if m.isLabelOnCard(label.ID) {
@@ -677,39 +849,202 @@ func (m CardModel) View() string {
 					if name == "" {
 						name = label.Color
 					}
-					colorDot := labelColor(label.Color).Render("●")
-					b.WriteString(cursor + check + colorDot + " " + rowStyle.Render(name) + "\n")
+					b.WriteString(cursor + check + labelColor(label.Color).Render("● ") + rs.Render(name) + "\n")
 				}
 			}
 		}
-		b.WriteString("\n" + helpStyle.Render("enter/space: toggle  esc: close"))
+		b.WriteString("\n" + helpStyle.Render("enter/space:toggle  esc:close"))
+
 	case cardSetDue:
-		b.WriteString(sectionTitle.Render("Set due date"))
-		b.WriteString("\n" + divider + "\n\n")
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render("Set due date") + "\n\n")
 		b.WriteString("Date (YYYY-MM-DD, empty to clear):\n\n")
 		b.WriteString(m.dueInput.View())
-		b.WriteString("\n\n" + helpStyle.Render("enter: save  esc: cancel"))
+		b.WriteString("\n\n" + helpStyle.Render("enter:save  esc:cancel"))
+
 	default:
-		b.WriteString(sectionTitle.Render("Description"))
-		b.WriteString("\n" + divider + "\n\n")
+		// breadcrumb
+		b.WriteString(helpStyle.Render("in "+m.listName) + "\n\n")
+
+		// title
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).
+			Render(m.card.Name) + "\n")
+
+		// labels
+		if len(m.card.Labels) > 0 {
+			var parts []string
+			for _, l := range m.card.Labels {
+				name := l.Name
+				if name == "" {
+					name = l.Color
+				}
+				parts = append(parts, labelColor(l.Color).Render(name))
+			}
+			b.WriteString("\n" + strings.Join(parts, "  ") + "\n")
+		}
+
+		// due date
+		if m.card.Due != "" {
+			if label, s := formatDue(m.card.Due, m.card.DueComplete); label != "" {
+				b.WriteString("\n" + s.Render("Due: "+label) + "\n")
+			}
+		}
+
+		// members
+		if len(m.card.Members) > 0 {
+			var names []string
+			for _, mem := range m.card.Members {
+				names = append(names, mem.FullName)
+			}
+			b.WriteString("\n" + helpStyle.Render("Members: "+strings.Join(names, ", ")) + "\n")
+		}
+
+		// url
+		if m.card.ShortURL != "" {
+			b.WriteString("\n" + helpStyle.Render(m.card.ShortURL) + "\n")
+		}
+
+		b.WriteString("\n")
+
+		// description
 		desc := m.card.Desc
 		if desc == "" {
 			desc = helpStyle.Render("(no description)")
 		}
-		descStyle := lipgloss.NewStyle().Width(contentWidth)
-		b.WriteString(descStyle.Render(desc))
+		b.WriteString(desc)
 	}
 
-	b.WriteString("\n\n")
+	return paneBox("Card Info", b.String(), width, height, active)
+}
 
-	if m.statusMsg != "" {
-		statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981"))
-		b.WriteString(statusStyle.Render(m.statusMsg) + "\n\n")
+func (m CardModel) renderChecklistPane(width, height int) string {
+	active := m.mode == cardChecklistPane
+	var b strings.Builder
+
+	if m.loadingCL {
+		b.WriteString(helpStyle.Render("Loading..."))
+	} else if len(m.checklists) == 0 {
+		b.WriteString(helpStyle.Render("(no checklists)"))
+	} else {
+		refs := m.allCheckItemRefs()
+		flatIdx := 0
+		for _, cl := range m.checklists {
+			// checklist header with progress
+			done := 0
+			for _, it := range cl.CheckItems {
+				if it.State == "complete" {
+					done++
+				}
+			}
+			total := len(cl.CheckItems)
+			clTitle := lipgloss.NewStyle().Bold(true).Render(
+				fmt.Sprintf("%s (%d/%d)", cl.Name, done, total),
+			)
+			b.WriteString(clTitle + "\n")
+
+			for _, item := range cl.CheckItems {
+				cursor := "  "
+				itemStyle := lipgloss.NewStyle()
+				if active && flatIdx < len(refs) && m.checkItemIdx == flatIdx {
+					cursor = "▸ "
+					itemStyle = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				}
+				box := "[ ]"
+				if item.State == "complete" {
+					box = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("[x]")
+					itemStyle = itemStyle.Foreground(dimColor)
+				}
+				b.WriteString(cursor + box + " " + itemStyle.Render(item.Name) + "\n")
+				flatIdx++
+			}
+		}
 	}
 
-	if m.mode == cardView {
-		b.WriteString(helpStyle.Render("t:title  E:desc  m:move  a:members  l:labels  d:due  ,/.:move left/right  </>:first/last  esc:back"))
+	title := "Checklist"
+	if active {
+		title += helpStyle.Render("  j/k:navigate  enter:toggle  tab:next  esc:back")
+	}
+	return paneBox(title, b.String(), width, height, active)
+}
+
+func (m CardModel) renderCommentsPane(width, height int) string {
+	active := m.mode == cardCommentsPane || m.mode == cardAddComment
+	var b strings.Builder
+
+	if m.mode == cardAddComment {
+		b.WriteString(helpStyle.Render("New comment (ctrl+s:send  esc:cancel)") + "\n\n")
+		b.WriteString(m.commentInput.View())
+	} else if m.loadingCom {
+		b.WriteString(helpStyle.Render("Loading..."))
+	} else if len(m.comments) == 0 {
+		b.WriteString(helpStyle.Render("(no comments)"))
+	} else {
+		for i, c := range m.comments {
+			cursor := "  "
+			if active && i == m.commentIdx {
+				cursor = "▸ "
+			}
+
+			// parse date
+			dateStr := ""
+			for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02T15:04:05.000Z"} {
+				if t, err := time.Parse(layout, c.Date); err == nil {
+					dateStr = t.Format("2 Jan")
+					break
+				}
+			}
+
+			author := c.MemberCreator.FullName
+			if author == "" {
+				author = c.MemberCreator.Username
+			}
+			header := lipgloss.NewStyle().Bold(true).Render(author)
+			if dateStr != "" {
+				header += helpStyle.Render(" • " + dateStr)
+			}
+			b.WriteString(cursor + header + "\n")
+			b.WriteString("  " + c.Data.Text + "\n\n")
+		}
 	}
 
-	return lipgloss.NewStyle().Padding(1, 2).Render(b.String())
+	title := "Comments"
+	if active && m.mode != cardAddComment {
+		title += helpStyle.Render("  j/k:scroll  n:add  tab:next  esc:back")
+	}
+	return paneBox(title, b.String(), width, height, active)
+}
+
+func (m CardModel) helpLine() string {
+	switch m.mode {
+	case cardChecklistPane:
+		return ""
+	case cardCommentsPane:
+		return ""
+	case cardAddComment:
+		return ""
+	default:
+		return helpStyle.Render("t:title  E:desc  m:move  a:members  l:labels  d:due  ,/.:move lr  tab:next pane  esc:back")
+	}
+}
+
+// ── paneBox ───────────────────────────────────────────────────────────────────
+
+func paneBox(title, content string, width, height int, active bool) string {
+	borderColor := dimColor
+	if active {
+		borderColor = primaryColor
+	}
+	innerW := width - 4 // border(1 each side) + padding(1 each side)
+	if innerW < 10 {
+		innerW = 10
+	}
+	header := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render(title) + "\n" +
+		helpStyle.Render(strings.Repeat("─", innerW))
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Padding(0, 1).
+		Width(innerW).
+		Height(height - 2).
+		Render(header + "\n" + content)
 }
