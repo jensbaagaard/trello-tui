@@ -14,10 +14,10 @@ import (
 
 const trelloArt = `╔╦╗╦═╗╔═╗╦  ╦  ╔═╗  ╔╦╗╦ ╦╦
  ║ ╠╦╝║╣ ║  ║  ║ ║   ║ ║ ║║
- ╩ ╩╚═╚═╝╩═╝╩═╝╚═╝   ╩ ╚═╝╩ `
+ ╩ ╩╚═╚═╝╩═╝╩═╝╚═╝   ╩ ╚═╝╩`
 
-// artHeight is the number of lines the art occupies (5 lines + 1 rule + 1 blank separator).
-const artHeight = 7
+// artHeight is the number of lines the art occupies (3 lines + 1 rule + 1 blank separator).
+const artHeight = 5
 
 type boardListMode int
 
