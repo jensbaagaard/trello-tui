@@ -52,6 +52,10 @@ func (m BoardModel) View() string {
 		return "No lists found on this board."
 	}
 
+	if m.mode == boardArchive || m.mode == boardArchiveFilter {
+		return m.renderArchiveView()
+	}
+
 	if m.mode == boardLabelManager || m.mode == boardLabelCreate || m.mode == boardLabelEdit ||
 		m.mode == boardLabelColorPick || m.mode == boardLabelConfirmDelete {
 		return m.renderLabelManager()
@@ -103,7 +107,7 @@ func (m BoardModel) View() string {
 	} else if m.filterText != "" {
 		status = helpStyle.Render(fmt.Sprintf("filter: %s  ←→:lists  j/k:cards  /:edit filter  esc:clear filter", m.filterText))
 	} else {
-		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  L:labels  enter:open  /:filter  r:refresh  esc:back")
+		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  a:archived  L:labels  enter:open  /:filter  r:refresh  esc:back")
 	}
 
 	header := titleStyle.Render(m.board.Name) + scrollHint
@@ -177,6 +181,66 @@ func (m BoardModel) renderLabelManager() string {
 			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg) + "\n")
 		}
 		b.WriteString(helpStyle.Render("j/k:navigate  n:new  e:edit  d:delete  esc:back"))
+	}
+
+	return header + b.String()
+}
+
+func (m BoardModel) renderArchiveView() string {
+	header := titleStyle.Render(m.board.Name+" — Archived Cards") + "\n\n"
+	var b strings.Builder
+
+	cards := m.filteredArchivedCards()
+
+	if len(m.archivedCards) == 0 {
+		b.WriteString(helpStyle.Render("(no archived cards)"))
+	} else if len(cards) == 0 {
+		b.WriteString(helpStyle.Render(fmt.Sprintf("No cards match \"%s\"", m.archiveFilterText)))
+	} else {
+		visible := m.archiveVisibleCount()
+		start := m.archiveScrollTop
+		end := start + visible
+		if end > len(cards) {
+			end = len(cards)
+		}
+
+		if start > 0 {
+			b.WriteString(dimRender(fmt.Sprintf("  ↑ %d more", start)) + "\n")
+		}
+
+		for i := start; i < end; i++ {
+			card := cards[i]
+			cursor := "  "
+			s := lipgloss.NewStyle()
+			if i == m.archiveCursor {
+				cursor = "▸ "
+				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+			}
+			listName := card.IDList
+			for _, l := range m.lists {
+				if l.ID == card.IDList {
+					listName = l.Name
+					break
+				}
+			}
+			b.WriteString(cursor + s.Render(card.Name) + helpStyle.Render("  ["+listName+"]") + "\n")
+		}
+
+		if end < len(cards) {
+			b.WriteString(dimRender(fmt.Sprintf("  ↓ %d more", len(cards)-end)) + "\n")
+		}
+	}
+
+	b.WriteString("\n")
+	if m.mode == boardArchiveFilter {
+		b.WriteString("Filter: " + m.textInput.View() + "\n")
+	} else if m.statusMsg != "" {
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg) + "\n")
+	} else if m.archiveFilterText != "" {
+		b.WriteString(helpStyle.Render(fmt.Sprintf("filter: %s", m.archiveFilterText)) + "\n")
+	}
+	if m.mode != boardArchiveFilter {
+		b.WriteString(helpStyle.Render("j/k:navigate  enter/u:restore  /:filter  r:refresh  esc:back"))
 	}
 
 	return header + b.String()

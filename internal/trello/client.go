@@ -133,6 +133,17 @@ func (c *Client) ArchiveCard(cardID string) error {
 	}, nil)
 }
 
+func (c *Client) GetArchivedCards(boardID string) ([]Card, error) {
+	var cards []Card
+	params := url.Values{"members": {"true"}}
+	err := c.get(fmt.Sprintf("/boards/%s/cards/closed", boardID), params, &cards)
+	return cards, err
+}
+
+func (c *Client) RestoreCard(cardID string) (Card, error) {
+	return c.UpdateCard(cardID, map[string]string{"closed": "false"})
+}
+
 func (c *Client) GetBoardMembers(boardID string) ([]Member, error) {
 	var members []Member
 	err := c.get(fmt.Sprintf("/boards/%s/members", boardID), nil, &members)

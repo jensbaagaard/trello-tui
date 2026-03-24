@@ -140,6 +140,16 @@ type CardURLCopiedMsg struct {
 	Err error
 }
 
+type ArchivedCardsFetchedMsg struct {
+	Cards []trello.Card
+	Err   error
+}
+
+type CardRestoredMsg struct {
+	Card trello.Card
+	Err  error
+}
+
 type VersionCheckMsg struct {
 	UpdateNotice string
 }

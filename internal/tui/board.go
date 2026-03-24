@@ -24,6 +24,8 @@ const (
 	boardLabelEdit
 	boardLabelColorPick
 	boardLabelConfirmDelete
+	boardArchive
+	boardArchiveFilter
 )
 
 type BoardModel struct {
@@ -50,6 +52,12 @@ type BoardModel struct {
 	labelNameInput textinput.Model
 	labelColorIdx  int
 	editingLabelID string
+
+	// Archive viewer
+	archivedCards      []trello.Card
+	archiveCursor      int
+	archiveScrollTop   int
+	archiveFilterText  string
 }
 
 func NewBoardModel(client *trello.Client, board trello.Board) BoardModel {
@@ -150,6 +158,23 @@ func (m BoardModel) deleteLabel(labelID string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.DeleteLabel(labelID)
 		return LabelDeletedMsg{LabelID: labelID, Err: err}
+	}
+}
+
+func (m BoardModel) fetchArchivedCards() tea.Cmd {
+	client := m.client
+	boardID := m.board.ID
+	return func() tea.Msg {
+		cards, err := client.GetArchivedCards(boardID)
+		return ArchivedCardsFetchedMsg{Cards: cards, Err: err}
+	}
+}
+
+func (m BoardModel) restoreCard(cardID string) tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		card, err := client.RestoreCard(cardID)
+		return CardRestoredMsg{Card: card, Err: err}
 	}
 }
 
@@ -268,6 +293,40 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 		}
 		m.statusMsg = "Label deleted"
 		m.mode = boardLabelManager
+		return m, nil
+
+	case ArchivedCardsFetchedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error fetching archived cards: %v", msg.Err)
+			m.mode = boardNav
+			return m, nil
+		}
+		m.archivedCards = msg.Cards
+		return m, nil
+
+	case CardRestoredMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error restoring card: %v", msg.Err)
+			return m, nil
+		}
+		for i, c := range m.archivedCards {
+			if c.ID == msg.Card.ID {
+				m.archivedCards = append(m.archivedCards[:i], m.archivedCards[i+1:]...)
+				break
+			}
+		}
+		if m.archiveCursor >= len(m.archivedCards) && m.archiveCursor > 0 {
+			m.archiveCursor--
+		}
+		m.cardsByList[msg.Card.IDList] = append(m.cardsByList[msg.Card.IDList], msg.Card)
+		listName := msg.Card.IDList
+		for _, l := range m.lists {
+			if l.ID == msg.Card.IDList {
+				listName = l.Name
+				break
+			}
+		}
+		m.statusMsg = fmt.Sprintf("Card restored to %s", listName)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -504,6 +563,19 @@ func (m BoardModel) filteredCards(listID string) []trello.Card {
 	var result []trello.Card
 	for _, c := range cards {
 		if matchesFilter(c, m.filterText) {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
+func (m BoardModel) filteredArchivedCards() []trello.Card {
+	if m.archiveFilterText == "" {
+		return m.archivedCards
+	}
+	var result []trello.Card
+	for _, c := range m.archivedCards {
+		if matchesFilter(c, m.archiveFilterText) {
 			result = append(result, c)
 		}
 	}

@@ -22,6 +22,12 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		m.mode == boardLabelColorPick || m.mode == boardLabelConfirmDelete {
 		return m.handleLabelManagerKey(msg)
 	}
+	if m.mode == boardArchiveFilter {
+		return m.handleArchiveFilterKey(msg)
+	}
+	if m.mode == boardArchive {
+		return m.handleArchiveKey(msg)
+	}
 
 	switch msg.String() {
 	case "left":
@@ -67,6 +73,11 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		return m.moveCardToFirst()
 	case ">":
 		return m.moveCardToLast()
+	case "a":
+		m.mode = boardArchive
+		m.archiveCursor = 0
+		m.statusMsg = ""
+		return m, m.fetchArchivedCards()
 	case "L":
 		m.mode = boardLabelManager
 		m.labelCursor = 0
@@ -345,4 +356,90 @@ func (m BoardModel) doMoveCard(card *trello.Card, srcListID string, targetFullId
 		c, err := client.MoveCard(cardID, targetListID)
 		return CardUpdatedMsg{Card: c, Err: err}
 	}
+}
+
+func (m BoardModel) handleArchiveKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	filtered := m.filteredArchivedCards()
+	switch msg.String() {
+	case "j", "down":
+		if m.archiveCursor < len(filtered)-1 {
+			m.archiveCursor++
+			m.ensureArchiveCursorVisible()
+		}
+	case "k", "up":
+		if m.archiveCursor > 0 {
+			m.archiveCursor--
+			m.ensureArchiveCursorVisible()
+		}
+	case "enter", "u":
+		if len(filtered) > 0 && m.archiveCursor < len(filtered) {
+			card := filtered[m.archiveCursor]
+			return m, m.restoreCard(card.ID)
+		}
+	case "/":
+		m.mode = boardArchiveFilter
+		m.textInput.Placeholder = "Filter archived cards..."
+		m.textInput.SetValue(m.archiveFilterText)
+		m.textInput.Focus()
+		return m, textinput.Blink
+	case "r":
+		m.statusMsg = ""
+		m.archiveScrollTop = 0
+		m.archiveCursor = 0
+		return m, m.fetchArchivedCards()
+	case "esc":
+		if m.archiveFilterText != "" {
+			m.archiveFilterText = ""
+			m.archiveCursor = 0
+			m.archiveScrollTop = 0
+			return m, nil
+		}
+		m.mode = boardNav
+		m.statusMsg = ""
+	}
+	return m, nil
+}
+
+func (m BoardModel) handleArchiveFilterKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		m.archiveFilterText = m.textInput.Value()
+		m.mode = boardArchive
+		m.archiveCursor = 0
+		m.archiveScrollTop = 0
+		return m, nil
+	case "esc":
+		m.archiveFilterText = ""
+		m.mode = boardArchive
+		m.archiveCursor = 0
+		m.archiveScrollTop = 0
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(msg)
+	m.archiveFilterText = m.textInput.Value()
+	m.archiveCursor = 0
+	m.archiveScrollTop = 0
+	return m, cmd
+}
+
+func (m *BoardModel) ensureArchiveCursorVisible() {
+	visible := m.archiveVisibleCount()
+	if m.archiveCursor < m.archiveScrollTop {
+		m.archiveScrollTop = m.archiveCursor
+	}
+	if m.archiveCursor >= m.archiveScrollTop+visible {
+		m.archiveScrollTop = m.archiveCursor - visible + 1
+	}
+}
+
+func (m BoardModel) archiveVisibleCount() int {
+	// header (2 lines) + footer (2-3 lines for status + help)
+	overhead := 5
+	n := m.height - overhead
+	if n < 3 {
+		n = 3
+	}
+	return n
 }
