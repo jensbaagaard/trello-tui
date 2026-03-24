@@ -4,7 +4,7 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 
 ## Features
 
-- **Board browser** with fuzzy filtering
+- **Board browser** with fuzzy filtering and board creation
 - **Kanban board view** with responsive columns and horizontal scrolling
 - **Card management** — create, edit, archive, and move cards between lists or across boards
 - **Card detail view** with multiple panes:
@@ -12,6 +12,7 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
   - Checklists with interactive toggle, create/delete checklists and items
   - Attachments with system viewer integration, URL attachment support, and deletion
   - Activity feed with interlaced comments
+- **Board member management** — invite members by email, remove members from the board
 - **Label management** — create, edit, and delete board labels; create labels inline from the card picker
 - **Inline editing** — title, description, due date, members, and labels
 - **Comments** — view and post comments from the activity pane
@@ -87,6 +88,14 @@ trello-tui --version                # print version and exit
 | `s`       | Search cards    |
 | `enter`   | Open board      |
 | `q`       | Quit            |
+
+#### Workspace Picker (after typing new board name)
+
+| Key       | Action            |
+| --------- | ----------------- |
+| `j` / `k` | Navigate          |
+| `enter`   | Create board here |
+| `esc`     | Cancel            |
 
 #### Card Search
 

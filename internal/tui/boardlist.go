@@ -12,6 +12,13 @@ import (
 	"github.com/jensbaagaard/trello-tui/internal/trello"
 )
 
+const trelloArt = `╔╦╗╦═╗╔═╗╦  ╦  ╔═╗  ╔╦╗╦ ╦╦
+ ║ ╠╦╝║╣ ║  ║  ║ ║   ║ ║ ║║
+ ╩ ╩╚═╚═╝╩═╝╩═╝╚═╝   ╩ ╚═╝╩ `
+
+// artHeight is the number of lines the art occupies (5 lines + 1 rule + 1 blank separator).
+const artHeight = 7
+
 type boardListMode int
 
 const (
@@ -30,21 +37,23 @@ func (b boardItem) Description() string { return b.board.ID }
 func (b boardItem) FilterValue() string { return b.board.Name }
 
 type BoardListModel struct {
-	list           list.Model
-	client         *trello.Client
-	loading        bool
-	err            error
-	mode           boardListMode
-	textInput      textinput.Model
-	statusMsg      string
-	pendingName    string                // board name waiting for workspace selection
-	organizations  []trello.Organization
-	orgCursor      int
-	loadingOrgs    bool
+	list          list.Model
+	client        *trello.Client
+	loading       bool
+	err           error
+	mode          boardListMode
+	textInput     textinput.Model
+	statusMsg     string
+	pendingName   string // board name waiting for workspace selection
+	organizations []trello.Organization
+	orgCursor     int
+	loadingOrgs   bool
+	width         int
 }
 
 func NewBoardListModel(client *trello.Client) BoardListModel {
 	delegate := list.NewDefaultDelegate()
+	delegate.SetSpacing(1)
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
 		Foreground(primaryColor).BorderForeground(primaryColor)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
@@ -55,8 +64,7 @@ func NewBoardListModel(client *trello.Client) BoardListModel {
 		Foreground(dimColor)
 
 	l := list.New(nil, delegate, 0, 0)
-	l.Title = "Trello Boards"
-	l.Styles.Title = titleStyle
+	l.SetShowTitle(false)
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.AdditionalShortHelpKeys = func() []bkey.Binding {
@@ -110,7 +118,8 @@ func (m BoardListModel) createBoard(name, idOrganization string) tea.Cmd {
 func (m BoardListModel) Update(msg tea.Msg) (BoardListModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.list.SetSize(msg.Width, msg.Height-2)
+		m.width = msg.Width
+		m.list.SetSize(msg.Width, msg.Height-2-artHeight)
 
 	case BoardsFetchedMsg:
 		m.loading = false
@@ -210,25 +219,35 @@ func (m BoardListModel) Update(msg tea.Msg) (BoardListModel, tea.Cmd) {
 	return m, cmd
 }
 
+func (m BoardListModel) renderArt() string {
+	art := lipgloss.NewStyle().Foreground(primaryColor).Bold(true).Render(trelloArt)
+	w := m.width
+	if w <= 0 {
+		w = 80
+	}
+	rule := lipgloss.NewStyle().Foreground(primaryColor).Render(strings.Repeat("─", w))
+	return art + "\n" + rule + "\n"
+}
+
 func (m BoardListModel) View() string {
+	art := m.renderArt()
+
 	if m.err != nil {
-		return errorStyle.Render(fmt.Sprintf("Error loading boards: %v", m.err))
+		return art + "\n" + errorStyle.Render(fmt.Sprintf("Error loading boards: %v", m.err))
 	}
 	if m.loading {
-		return "Loading boards..."
+		return art + "\n" + "Loading boards..."
 	}
 	if m.mode == boardListCreate {
-		header := titleStyle.Render("Trello Boards") + "\n\n"
 		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
-		return header + sT.Render("New board") + "\n\n" +
+		return art + "\n" + sT.Render("New board") + "\n\n" +
 			"Name: " + m.textInput.View() + "\n\n" +
 			helpStyle.Render("enter:next  esc:cancel")
 	}
 	if m.mode == boardListWorkspacePick {
-		header := titleStyle.Render("Trello Boards") + "\n\n"
 		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
 		var b strings.Builder
-		b.WriteString(header + sT.Render("Pick workspace for: "+m.pendingName) + "\n\n")
+		b.WriteString(art + "\n" + sT.Render("Pick workspace for: "+m.pendingName) + "\n\n")
 		if m.loadingOrgs {
 			b.WriteString(helpStyle.Render("Loading workspaces..."))
 		} else if len(m.organizations) == 0 {
@@ -248,7 +267,7 @@ func (m BoardListModel) View() string {
 		}
 		return b.String()
 	}
-	view := m.list.View()
+	view := art + m.list.View()
 	if m.statusMsg != "" {
 		view += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg)
 	}
