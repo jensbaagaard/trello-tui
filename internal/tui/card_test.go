@@ -35,8 +35,8 @@ func TestCardUpdateMsg(t *testing.T) {
 	if updated.card.Name != "Updated Title" {
 		t.Errorf("card.Name = %q, want %q", updated.card.Name, "Updated Title")
 	}
-	if updated.statusMsg != "Card updated" {
-		t.Errorf("statusMsg = %q, want %q", updated.statusMsg, "Card updated")
+	if updated.statusMsg != "Saved" {
+		t.Errorf("statusMsg = %q, want %q", updated.statusMsg, "Saved")
 	}
 }
 
@@ -89,18 +89,18 @@ func TestKeyEditTitle(t *testing.T) {
 		t.Errorf("after esc: mode = %d, want cardView", updated.mode)
 	}
 
-	// e also enters edit mode
+	// e enters desc edit mode (not title)
 	updated, _ = m.Update(key("e"))
-	if updated.mode != cardEditTitle {
-		t.Errorf("mode after e = %d, want cardEditTitle", updated.mode)
+	if updated.mode != cardEditDesc {
+		t.Errorf("mode after e = %d, want cardEditDesc", updated.mode)
 	}
 }
 
 func TestKeyEditDesc(t *testing.T) {
 	m := newTestCardModel()
 
-	// E enters desc edit mode
-	updated, _ := m.Update(key("E"))
+	// e enters desc edit mode
+	updated, _ := m.Update(key("e"))
 	if updated.mode != cardEditDesc {
 		t.Errorf("mode = %d, want cardEditDesc", updated.mode)
 	}
@@ -193,7 +193,7 @@ func TestKeyMoveShortcuts(t *testing.T) {
 func TestCardView(t *testing.T) {
 	m := newTestCardModel()
 	m.width = 80
-	m.height = 40
+	m.height = 60
 
 	v := m.View()
 	if !strings.Contains(v, "Test Card") {
@@ -219,7 +219,7 @@ func TestCardView(t *testing.T) {
 func TestCardViewModes(t *testing.T) {
 	m := newTestCardModel()
 	m.width = 80
-	m.height = 40
+	m.height = 60
 
 	// Edit title mode
 	m.mode = cardEditTitle
@@ -231,7 +231,7 @@ func TestCardViewModes(t *testing.T) {
 	// Edit desc mode
 	m.mode = cardEditDesc
 	v = m.View()
-	if !strings.Contains(v, "Description (esc to save)") {
+	if !strings.Contains(v, "Description (esc:save)") {
 		t.Error("edit desc mode should show save instruction")
 	}
 
@@ -245,7 +245,7 @@ func TestCardViewModes(t *testing.T) {
 	// View mode shows help text
 	m.mode = cardView
 	v = m.View()
-	if !strings.Contains(v, "t:edit title") {
+	if !strings.Contains(v, "t:title") {
 		t.Error("view mode should show help text")
 	}
 }
@@ -254,7 +254,7 @@ func TestCardViewNoDescription(t *testing.T) {
 	m := newTestCardModel()
 	m.card.Desc = ""
 	m.width = 80
-	m.height = 40
+	m.height = 60
 
 	v := m.View()
 	if !strings.Contains(v, "no description") {

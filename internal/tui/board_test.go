@@ -713,8 +713,10 @@ func TestMoveCardWithFilter(t *testing.T) {
 	if cmd == nil {
 		t.Error("expected non-nil cmd for API call")
 	}
-	if updated.activeList != 1 {
-		t.Errorf("after move right: activeList = %d, want 1", updated.activeList)
+	// After moving c1 ("Fix login bug") to l2, only l2 has matching cards
+	// for filter "bug", so visible lists = [l2] and activeList = 0
+	if updated.activeList != 0 {
+		t.Errorf("after move right: activeList = %d, want 0", updated.activeList)
 	}
 
 	// c1 should no longer be in l1

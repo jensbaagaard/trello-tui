@@ -2,7 +2,9 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/jensbaagaard/trello-tui/internal/trello"
+	"github.com/jensbaagaard/trello-tui/internal/version"
 )
 
 type screen int
@@ -14,25 +16,39 @@ const (
 )
 
 type AppModel struct {
-	client    *trello.Client
-	screen    screen
-	boardList BoardListModel
-	board     BoardModel
-	card      CardModel
-	width     int
-	height    int
+	client       *trello.Client
+	screen       screen
+	boardList    BoardListModel
+	board        BoardModel
+	card         CardModel
+	width        int
+	height       int
+	version      string
+	updateNotice string
 }
 
-func NewAppModel(client *trello.Client) AppModel {
+func NewAppModel(client *trello.Client, version string) AppModel {
 	return AppModel{
 		client:    client,
 		screen:    screenBoardList,
 		boardList: NewBoardListModel(client),
+		version:   version,
 	}
 }
 
 func (m AppModel) Init() tea.Cmd {
-	return m.boardList.Init()
+	return tea.Batch(m.boardList.Init(), m.checkVersion())
+}
+
+func (m AppModel) checkVersion() tea.Cmd {
+	currentVersion := m.version
+	return func() tea.Msg {
+		latest := version.CheckLatest()
+		if version.IsNewer(latest, currentVersion) {
+			return VersionCheckMsg{UpdateNotice: version.FormatNotice(latest)}
+		}
+		return VersionCheckMsg{}
+	}
 }
 
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -40,6 +56,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+	case VersionCheckMsg:
+		m.updateNotice = msg.UpdateNotice
+		return m, nil
 
 	case CardMovedMsg:
 		// Update board state when a card is moved from the card detail view
@@ -151,14 +171,21 @@ func (m *AppModel) moveCardInBoard(card trello.Card, fromListID, toListID string
 	m.board.cardsByList[toListID] = append(m.board.cardsByList[toListID], card)
 }
 
+var updateNoticeStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#F59E0B"))
+
 func (m AppModel) View() string {
+	var content string
 	switch m.screen {
 	case screenBoardList:
-		return m.boardList.View()
+		content = m.boardList.View()
 	case screenBoard:
-		return m.board.View()
+		content = m.board.View()
 	case screenCard:
-		return m.card.View()
+		content = m.card.View()
 	}
-	return ""
+	if m.updateNotice != "" {
+		content += "\n" + updateNoticeStyle.Render(m.updateNotice)
+	}
+	return content
 }

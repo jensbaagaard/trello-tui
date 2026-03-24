@@ -438,102 +438,91 @@ func (m BoardModel) archiveCard(cardID string) tea.Cmd {
 	}
 }
 
-func (m BoardModel) moveCardLeft() (BoardModel, tea.Cmd) {
-	if m.activeList == 0 {
-		return m, nil
+func (m BoardModel) fullListIndex(listID string) int {
+	for i, l := range m.lists {
+		if l.ID == listID {
+			return i
+		}
 	}
+	return -1
+}
+
+func (m BoardModel) moveCardLeft() (BoardModel, tea.Cmd) {
 	card := m.selectedCard()
 	if card == nil {
 		return m, nil
 	}
-	vis := m.visibleLists()
-	targetList := vis[m.activeList-1]
-
-	listID := m.currentListID()
-	m.removeCardFromList(listID, card.ID)
-
-	m.cardsByList[targetList.ID] = append(m.cardsByList[targetList.ID], *card)
-	m.activeList--
-	m.activeCard = len(m.filteredCards(targetList.ID)) - 1
-	m.scrollTop = 0
-	m.ensureCardVisible()
-	m.ensureListVisible()
-
-	client := m.client
-	cardID := card.ID
-	targetListID := targetList.ID
-	return m, func() tea.Msg {
-		c, err := client.MoveCard(cardID, targetListID)
-		return CardUpdatedMsg{Card: c, Err: err}
+	srcListID := m.currentListID()
+	fullIdx := m.fullListIndex(srcListID)
+	if fullIdx <= 0 {
+		return m, nil
 	}
+	return m.doMoveCard(card, srcListID, fullIdx-1)
 }
 
 func (m BoardModel) moveCardRight() (BoardModel, tea.Cmd) {
-	vis := m.visibleLists()
-	if m.activeList >= len(vis)-1 {
-		return m, nil
-	}
 	card := m.selectedCard()
 	if card == nil {
 		return m, nil
 	}
-	targetList := vis[m.activeList+1]
-
-	listID := m.currentListID()
-	m.removeCardFromList(listID, card.ID)
-
-	m.cardsByList[targetList.ID] = append(m.cardsByList[targetList.ID], *card)
-	m.activeList++
-	m.activeCard = len(m.filteredCards(targetList.ID)) - 1
-	m.scrollTop = 0
-	m.ensureCardVisible()
-	m.ensureListVisible()
-
-	client := m.client
-	cardID := card.ID
-	targetListID := targetList.ID
-	return m, func() tea.Msg {
-		c, err := client.MoveCard(cardID, targetListID)
-		return CardUpdatedMsg{Card: c, Err: err}
-	}
-}
-
-func (m BoardModel) moveCardTo(targetIdx int) (BoardModel, tea.Cmd) {
-	vis := m.visibleLists()
-	if targetIdx == m.activeList || targetIdx < 0 || targetIdx >= len(vis) {
+	srcListID := m.currentListID()
+	fullIdx := m.fullListIndex(srcListID)
+	if fullIdx < 0 || fullIdx >= len(m.lists)-1 {
 		return m, nil
 	}
-	card := m.selectedCard()
-	if card == nil {
-		return m, nil
-	}
-	targetList := vis[targetIdx]
-
-	listID := m.currentListID()
-	m.removeCardFromList(listID, card.ID)
-
-	m.cardsByList[targetList.ID] = append(m.cardsByList[targetList.ID], *card)
-	m.activeList = targetIdx
-	m.activeCard = len(m.filteredCards(targetList.ID)) - 1
-	m.scrollTop = 0
-	m.ensureCardVisible()
-	m.ensureListVisible()
-
-	client := m.client
-	cardID := card.ID
-	targetListID := targetList.ID
-	return m, func() tea.Msg {
-		c, err := client.MoveCard(cardID, targetListID)
-		return CardUpdatedMsg{Card: c, Err: err}
-	}
+	return m.doMoveCard(card, srcListID, fullIdx+1)
 }
 
 func (m BoardModel) moveCardToFirst() (BoardModel, tea.Cmd) {
-	return m.moveCardTo(0)
+	card := m.selectedCard()
+	if card == nil {
+		return m, nil
+	}
+	srcListID := m.currentListID()
+	fullIdx := m.fullListIndex(srcListID)
+	if fullIdx <= 0 {
+		return m, nil
+	}
+	return m.doMoveCard(card, srcListID, 0)
 }
 
 func (m BoardModel) moveCardToLast() (BoardModel, tea.Cmd) {
-	return m.moveCardTo(len(m.visibleLists()) - 1)
+	card := m.selectedCard()
+	if card == nil {
+		return m, nil
+	}
+	srcListID := m.currentListID()
+	fullIdx := m.fullListIndex(srcListID)
+	last := len(m.lists) - 1
+	if fullIdx < 0 || fullIdx >= last {
+		return m, nil
+	}
+	return m.doMoveCard(card, srcListID, last)
+}
+
+func (m BoardModel) doMoveCard(card *trello.Card, srcListID string, targetFullIdx int) (BoardModel, tea.Cmd) {
+	targetList := m.lists[targetFullIdx]
+	m.removeCardFromList(srcListID, card.ID)
+	m.cardsByList[targetList.ID] = append(m.cardsByList[targetList.ID], *card)
+
+	for i, l := range m.visibleLists() {
+		if l.ID == targetList.ID {
+			m.activeList = i
+			break
+		}
+	}
+	m.activeCard = len(m.filteredCards(targetList.ID)) - 1
+	m.scrollTop = 0
+	m.ensureCardVisible()
+	m.ensureListVisible()
+
+	client := m.client
+	cardID := card.ID
+	targetListID := targetList.ID
+	return m, func() tea.Msg {
+		c, err := client.MoveCard(cardID, targetListID)
+		return CardUpdatedMsg{Card: c, Err: err}
+	}
 }
 
 func (m *BoardModel) clampActiveList() {

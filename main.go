@@ -10,6 +10,8 @@ import (
 	"github.com/jensbaagaard/trello-tui/internal/tui"
 )
 
+var version = "dev"
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -18,7 +20,7 @@ func main() {
 	}
 
 	client := trello.NewClient(cfg.APIKey, cfg.Token)
-	app := tui.NewAppModel(client)
+	app := tui.NewAppModel(client, version)
 
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {

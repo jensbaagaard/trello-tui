@@ -11,6 +11,7 @@ func newTestAppModel() AppModel {
 	return AppModel{
 		screen:    screenBoardList,
 		boardList: NewBoardListModel(nil),
+		version:   "dev",
 	}
 }
 
@@ -156,5 +157,23 @@ func TestUpdateCardInBoard(t *testing.T) {
 	app := updated.(AppModel)
 	if app.board.cardsByList["l1"][0].Name != "New Name" {
 		t.Errorf("card name = %q, want %q", app.board.cardsByList["l1"][0].Name, "New Name")
+	}
+}
+
+func TestVersionCheckMsgSetsNotice(t *testing.T) {
+	m := newTestAppModel()
+	updated, _ := m.Update(VersionCheckMsg{UpdateNotice: "Update available: v0.4.0"})
+	app := updated.(AppModel)
+	if app.updateNotice != "Update available: v0.4.0" {
+		t.Errorf("updateNotice = %q, want %q", app.updateNotice, "Update available: v0.4.0")
+	}
+}
+
+func TestVersionCheckMsgEmptyNotice(t *testing.T) {
+	m := newTestAppModel()
+	updated, _ := m.Update(VersionCheckMsg{})
+	app := updated.(AppModel)
+	if app.updateNotice != "" {
+		t.Errorf("updateNotice = %q, want empty", app.updateNotice)
 	}
 }

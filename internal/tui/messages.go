@@ -94,3 +94,7 @@ type CommentAddedMsg struct {
 	Action trello.Action
 	Err    error
 }
+
+type VersionCheckMsg struct {
+	UpdateNotice string
+}
