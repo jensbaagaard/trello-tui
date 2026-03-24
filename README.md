@@ -11,6 +11,14 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 - Card detail view with description editing
 - Keyboard-driven — no mouse needed
 
+## Prerequisites
+
+- [Go](https://go.dev/dl/) 1.25 or later
+- Ensure `$HOME/go/bin` is in your `PATH`:
+  ```bash
+  export PATH="$PATH:$(go env GOPATH)/bin"
+  ```
+
 ## Installation
 
 ```bash
