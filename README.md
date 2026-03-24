@@ -192,7 +192,7 @@ Keys marked with `*` match Trello's native shortcuts.
 
 ## Roadmap
 
-- [] Create board and invite members
+- [ ] Create board and invite members
 
 ## License
 
