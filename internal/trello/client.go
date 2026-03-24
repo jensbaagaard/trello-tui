@@ -323,6 +323,34 @@ func (c *Client) ArchiveList(listID string) error {
 	}, nil)
 }
 
+func (c *Client) GetOrganizations() ([]Organization, error) {
+	var orgs []Organization
+	err := c.get("/members/me/organizations", nil, &orgs)
+	return orgs, err
+}
+
+func (c *Client) CreateBoard(name, idOrganization string) (Board, error) {
+	var board Board
+	err := c.request("POST", "/boards", map[string]string{
+		"name":           name,
+		"idOrganization": idOrganization,
+	}, &board)
+	return board, err
+}
+
+func (c *Client) AddMemberToBoard(boardID, email string) (Member, error) {
+	var member Member
+	err := c.request("PUT", fmt.Sprintf("/boards/%s/members", boardID), map[string]string{
+		"email": email,
+		"type":  "normal",
+	}, &member)
+	return member, err
+}
+
+func (c *Client) RemoveMemberFromBoard(boardID, memberID string) error {
+	return c.request("DELETE", fmt.Sprintf("/boards/%s/members/%s", boardID, memberID), nil, nil)
+}
+
 func (c *Client) SearchCards(query string, page int) ([]SearchCard, error) {
 	var result SearchResult
 	params := url.Values{

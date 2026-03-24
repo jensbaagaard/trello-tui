@@ -61,6 +61,10 @@ func (m BoardModel) View() string {
 		return m.renderLabelManager()
 	}
 
+	if m.mode == boardMemberManager || m.mode == boardInviteMember || m.mode == boardConfirmRemoveMember {
+		return m.renderMemberManager()
+	}
+
 	visLists := m.visibleLists()
 
 	if m.filterText != "" && len(visLists) == 0 {
@@ -192,6 +196,58 @@ func (m BoardModel) renderLabelManager() string {
 			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg) + "\n")
 		}
 		b.WriteString(helpStyle.Render("j/k:navigate  n:new  e:edit  d:delete  esc:back"))
+	}
+
+	return header + b.String()
+}
+
+func (m BoardModel) renderMemberManager() string {
+	header := titleStyle.Render(m.board.Name+" — Members") + "\n\n"
+	var b strings.Builder
+
+	switch m.mode {
+	case boardInviteMember:
+		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		b.WriteString(sT.Render("Invite member") + "\n\n")
+		b.WriteString("Email: " + m.memberEmailInput.View() + "\n\n")
+		b.WriteString(helpStyle.Render("enter:invite  esc:cancel"))
+
+	case boardConfirmRemoveMember:
+		name := ""
+		if m.memberCursor < len(m.boardMembers) {
+			mem := m.boardMembers[m.memberCursor]
+			name = mem.FullName
+			if name == "" {
+				name = mem.Username
+			}
+		}
+		b.WriteString(errorStyle.Render(fmt.Sprintf("Remove \"%s\" from board? (y/n)", name)))
+
+	default: // boardMemberManager
+		if m.loadingMembers {
+			b.WriteString(helpStyle.Render("Loading members..."))
+		} else if len(m.boardMembers) == 0 {
+			b.WriteString(helpStyle.Render("No members on this board."))
+		} else {
+			for i, mem := range m.boardMembers {
+				cursor := "  "
+				s := lipgloss.NewStyle()
+				if i == m.memberCursor {
+					cursor = "▸ "
+					s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				}
+				name := mem.FullName
+				if name == "" {
+					name = mem.Username
+				}
+				b.WriteString(cursor + s.Render(name) + helpStyle.Render("  @"+mem.Username) + "\n")
+			}
+		}
+		b.WriteString("\n")
+		if m.statusMsg != "" {
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg) + "\n")
+		}
+		b.WriteString(helpStyle.Render("j/k:navigate  n:invite  d:remove  esc:back"))
 	}
 
 	return header + b.String()

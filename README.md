@@ -83,6 +83,7 @@ trello-tui --version                # print version and exit
 | --------- | --------------- |
 | `j` / `k` | Navigate boards |
 | `/`       | Filter boards   |
+| `n`       | New board       |
 | `s`       | Search cards    |
 | `enter`   | Open board      |
 | `q`       | Quit            |
@@ -108,6 +109,7 @@ trello-tui --version                # print version and exit
 | `<` / `>`        | Move card to first / last list       |
 | `a`              | View archived cards                  |
 | `L`              | Manage board labels                  |
+| `M`              | Manage board members                 |
 | `N`              | New list                             |
 | `R`              | Rename current list                  |
 | `C`              | Archive current list                 |
@@ -116,6 +118,15 @@ trello-tui --version                # print version and exit
 | `enter`          | Open card detail                     |
 | `r`              | Refresh                              |
 | `esc`            | Clear filter / back to board list    |
+
+#### Member Manager (from board view)
+
+| Key       | Action         |
+| --------- | -------------- |
+| `j` / `k` | Navigate       |
+| `n`       | Invite member  |
+| `d`       | Remove member  |
+| `esc`     | Back           |
 
 #### Label Manager (from board view)
 
@@ -192,7 +203,7 @@ Keys marked with `*` match Trello's native shortcuts.
 
 ## Roadmap
 
-- [ ] Create board and invite members
+- [x] Create board and invite members
 
 ## License
 

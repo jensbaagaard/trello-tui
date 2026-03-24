@@ -199,3 +199,23 @@ type SearchCardListsFetchedMsg struct {
 	Lists []trello.List
 	Err   error
 }
+
+type OrganizationsFetchedMsg struct {
+	Organizations []trello.Organization
+	Err           error
+}
+
+type BoardCreatedMsg struct {
+	Board trello.Board
+	Err   error
+}
+
+type BoardMemberAddedMsg struct {
+	Member trello.Member
+	Err    error
+}
+
+type BoardMemberRemovedMsg struct {
+	MemberID string
+	Err      error
+}

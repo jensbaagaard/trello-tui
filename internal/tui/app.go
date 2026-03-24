@@ -91,6 +91,21 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+	case BoardCreatedMsg:
+		if msg.Err == nil {
+			m.boardList, _ = m.boardList.Update(msg)
+			m.board = NewBoardModel(m.client, msg.Board)
+			m.board.autoRefreshSecs = m.opts.AutoRefreshSecs
+			m.screen = screenBoard
+			return m, tea.Batch(
+				m.board.Init(),
+				func() tea.Msg { return tea.WindowSizeMsg{Width: m.width, Height: m.height} },
+			)
+		}
+		// On error, let boardList show the status message
+		m.boardList, _ = m.boardList.Update(msg)
+		return m, nil
+
 	case CardMovedMsg:
 		// Update board state when a card is moved from the card detail view
 		if msg.Err == nil && m.screen == screenCard {
@@ -136,11 +151,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "q":
-			if m.screen == screenBoardList && !m.boardList.IsFiltering() {
+			if m.screen == screenBoardList && !m.boardList.IsFiltering() && !m.boardList.IsCreating() {
 				return m, tea.Quit
 			}
 		case "s":
-			if m.screen == screenBoardList && !m.boardList.IsFiltering() {
+			if m.screen == screenBoardList && !m.boardList.IsFiltering() && !m.boardList.IsCreating() {
 				m.search = NewSearchModel(m.client)
 				m.screen = screenSearch
 				return m, tea.Batch(
@@ -149,7 +164,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				)
 			}
 		case "enter":
-			if m.screen == screenBoardList && !m.boardList.IsFiltering() {
+			if m.screen == screenBoardList && !m.boardList.IsFiltering() && !m.boardList.IsCreating() {
 				board := m.boardList.SelectedBoard()
 				if board != nil {
 					m.board = NewBoardModel(m.client, *board)

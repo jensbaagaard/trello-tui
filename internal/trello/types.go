@@ -6,6 +6,12 @@ type Board struct {
 	Closed bool   `json:"closed"`
 }
 
+type Organization struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+	Name        string `json:"name"` // short name / slug
+}
+
 type List struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`

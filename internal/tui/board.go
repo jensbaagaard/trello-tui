@@ -29,6 +29,9 @@ const (
 	boardAddList
 	boardRenameList
 	boardConfirmArchiveList
+	boardMemberManager
+	boardInviteMember
+	boardConfirmRemoveMember
 )
 
 type BoardModel struct {
@@ -57,10 +60,16 @@ type BoardModel struct {
 	editingLabelID string
 
 	// Archive viewer
-	archivedCards      []trello.Card
-	archiveCursor      int
-	archiveScrollTop   int
-	archiveFilterText  string
+	archivedCards     []trello.Card
+	archiveCursor     int
+	archiveScrollTop  int
+	archiveFilterText string
+
+	// Member manager
+	boardMembers     []trello.Member
+	memberCursor     int
+	memberEmailInput textinput.Model
+	loadingMembers   bool
 
 	// Auto-refresh
 	autoRefreshSecs int
@@ -75,13 +84,18 @@ func NewBoardModel(client *trello.Client, board trello.Board) BoardModel {
 	li.Placeholder = "Label name..."
 	li.CharLimit = 100
 
+	mi := textinput.New()
+	mi.Placeholder = "Email address..."
+	mi.CharLimit = 200
+
 	return BoardModel{
-		client:         client,
-		board:          board,
-		cardsByList:    make(map[string][]trello.Card),
-		loading:        true,
-		textInput:      ti,
-		labelNameInput: li,
+		client:           client,
+		board:            board,
+		cardsByList:      make(map[string][]trello.Card),
+		loading:          true,
+		textInput:        ti,
+		labelNameInput:   li,
+		memberEmailInput: mi,
 	}
 }
 
@@ -216,6 +230,33 @@ func (m BoardModel) archiveList(listID string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.ArchiveList(listID)
 		return ListArchivedMsg{ListID: listID, Err: err}
+	}
+}
+
+func (m BoardModel) fetchBoardMembers() tea.Cmd {
+	client := m.client
+	boardID := m.board.ID
+	return func() tea.Msg {
+		members, err := client.GetBoardMembers(boardID)
+		return BoardMembersFetchedMsg{Members: members, Err: err}
+	}
+}
+
+func (m BoardModel) addBoardMember(email string) tea.Cmd {
+	client := m.client
+	boardID := m.board.ID
+	return func() tea.Msg {
+		member, err := client.AddMemberToBoard(boardID, email)
+		return BoardMemberAddedMsg{Member: member, Err: err}
+	}
+}
+
+func (m BoardModel) removeBoardMember(memberID string) tea.Cmd {
+	client := m.client
+	boardID := m.board.ID
+	return func() tea.Msg {
+		err := client.RemoveMemberFromBoard(boardID, memberID)
+		return BoardMemberRemovedMsg{MemberID: memberID, Err: err}
 	}
 }
 
@@ -430,6 +471,45 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 			}
 		}
 		m.statusMsg = fmt.Sprintf("Card restored to %s", listName)
+		return m, nil
+
+	case BoardMembersFetchedMsg:
+		m.loadingMembers = false
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error fetching members: %v", msg.Err)
+			m.mode = boardNav
+			return m, nil
+		}
+		m.boardMembers = msg.Members
+		return m, nil
+
+	case BoardMemberAddedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error inviting member: %v", msg.Err)
+			return m, nil
+		}
+		m.boardMembers = append(m.boardMembers, msg.Member)
+		m.memberCursor = len(m.boardMembers) - 1
+		m.statusMsg = "Member invited"
+		m.mode = boardMemberManager
+		return m, nil
+
+	case BoardMemberRemovedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error removing member: %v", msg.Err)
+			return m, nil
+		}
+		for i, mem := range m.boardMembers {
+			if mem.ID == msg.MemberID {
+				m.boardMembers = append(m.boardMembers[:i], m.boardMembers[i+1:]...)
+				break
+			}
+		}
+		if m.memberCursor >= len(m.boardMembers) && m.memberCursor > 0 {
+			m.memberCursor--
+		}
+		m.statusMsg = "Member removed"
+		m.mode = boardMemberManager
 		return m, nil
 
 	case tea.KeyMsg:

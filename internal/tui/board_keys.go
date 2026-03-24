@@ -28,6 +28,9 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		m.mode == boardLabelColorPick || m.mode == boardLabelConfirmDelete {
 		return m.handleLabelManagerKey(msg)
 	}
+	if m.mode == boardMemberManager || m.mode == boardInviteMember || m.mode == boardConfirmRemoveMember {
+		return m.handleMemberManagerKey(msg)
+	}
 	if m.mode == boardArchiveFilter {
 		return m.handleArchiveFilterKey(msg)
 	}
@@ -92,6 +95,12 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 			return m, m.fetchBoardLabels()
 		}
 		return m, nil
+	case "M":
+		m.mode = boardMemberManager
+		m.memberCursor = 0
+		m.statusMsg = ""
+		m.loadingMembers = true
+		return m, m.fetchBoardMembers()
 	case "N":
 		m.mode = boardAddList
 		m.textInput.Placeholder = "List name..."
@@ -565,4 +574,68 @@ func (m BoardModel) archiveVisibleCount() int {
 		n = 3
 	}
 	return n
+}
+
+func (m BoardModel) handleMemberManagerKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	switch m.mode {
+	case boardMemberManager:
+		switch msg.String() {
+		case "j", "down":
+			if m.memberCursor < len(m.boardMembers)-1 {
+				m.memberCursor++
+			}
+		case "k", "up":
+			if m.memberCursor > 0 {
+				m.memberCursor--
+			}
+		case "n":
+			m.mode = boardInviteMember
+			m.memberEmailInput.SetValue("")
+			m.memberEmailInput.Focus()
+			m.statusMsg = ""
+			return m, textinput.Blink
+		case "d":
+			if len(m.boardMembers) > 0 {
+				m.mode = boardConfirmRemoveMember
+			}
+		case "esc":
+			m.mode = boardNav
+		}
+
+	case boardInviteMember:
+		switch msg.String() {
+		case "enter":
+			email := strings.TrimSpace(m.memberEmailInput.Value())
+			m.memberEmailInput.SetValue("")
+			m.memberEmailInput.Blur()
+			m.mode = boardMemberManager
+			if email == "" {
+				return m, nil
+			}
+			return m, m.addBoardMember(email)
+		case "esc":
+			m.memberEmailInput.SetValue("")
+			m.memberEmailInput.Blur()
+			m.mode = boardMemberManager
+		default:
+			var cmd tea.Cmd
+			m.memberEmailInput, cmd = m.memberEmailInput.Update(msg)
+			return m, cmd
+		}
+
+	case boardConfirmRemoveMember:
+		switch msg.String() {
+		case "y", "Y":
+			if len(m.boardMembers) > 0 && m.memberCursor < len(m.boardMembers) {
+				memberID := m.boardMembers[m.memberCursor].ID
+				m.mode = boardMemberManager
+				return m, m.removeBoardMember(memberID)
+			}
+			m.mode = boardMemberManager
+		case "n", "N", "esc":
+			m.mode = boardMemberManager
+		}
+	}
+
+	return m, nil
 }
