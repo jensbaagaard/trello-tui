@@ -9,8 +9,8 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 - **Card management** — create, edit, archive, and move cards between lists
 - **Card detail view** with multiple panes:
   - Info (title, description, labels, members, due date, URL)
-  - Checklists with interactive toggle, create new checklists and items
-  - Attachments with system viewer integration and URL attachment support
+  - Checklists with interactive toggle, create/delete checklists and items
+  - Attachments with system viewer integration, URL attachment support, and deletion
   - Activity feed with interlaced comments
 - **Label management** — create, edit, and delete board labels; create labels inline from the card picker
 - **Inline editing** — title, description, due date, members, and labels
@@ -129,12 +129,13 @@ Keys marked with `*` match Trello's native shortcuts.
 
 | Key               | Action         |
 | ----------------- | -------------- |
-| `j` / `k`         | Navigate items |
-| `enter` / `space`  | Toggle item    |
-| `n`               | Add item       |
-| `-`               | New checklist  |
-| `tab`             | Next pane      |
-| `esc`             | Back           |
+| `j` / `k`         | Navigate items   |
+| `enter` / `space`  | Toggle item      |
+| `n`               | Add item         |
+| `-`               | New checklist    |
+| `d`               | Delete checklist |
+| `tab`             | Next pane        |
+| `esc`             | Back             |
 
 #### Attachments Pane
 
@@ -143,6 +144,7 @@ Keys marked with `*` match Trello's native shortcuts.
 | `j` / `k`       | Navigate attachments     |
 | `o` / `enter`   | Open with system viewer  |
 | `a`             | Add URL attachment       |
+| `d`             | Delete attachment        |
 | `tab`           | Next pane                |
 | `esc`           | Back                     |
 

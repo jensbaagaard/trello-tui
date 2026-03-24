@@ -30,6 +30,8 @@ const (
 	cardAddChecklist
 	cardAddCheckItem
 	cardAddAttachment
+	cardConfirmDeleteChecklist
+	cardConfirmDeleteAttachment
 )
 
 type checkRef struct{ cl, it int }
@@ -311,9 +313,40 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 			return m, nil
 		}
-		m.attachments = append(m.attachments, msg.Attachment)
 		m.statusMsg = "Attachment added"
+		return m, m.fetchAttachments()
+
+	case ChecklistDeletedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
+			return m, nil
+		}
+		for i, cl := range m.checklists {
+			if cl.ID == msg.ChecklistID {
+				m.checklists = append(m.checklists[:i], m.checklists[i+1:]...)
+				break
+			}
+		}
+		refs := m.allCheckItemRefs()
+		if m.checkItemIdx >= len(refs) {
+			m.checkItemIdx = len(refs) - 1
+		}
+		if m.checkItemIdx < 0 {
+			m.checkItemIdx = 0
+		}
+		m.statusMsg = "Checklist deleted"
+		if len(m.checklists) == 0 {
+			m.mode = cardView
+		}
 		return m, nil
+
+	case AttachmentDeletedMsg:
+		if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
+			return m, nil
+		}
+		m.statusMsg = "Attachment deleted"
+		return m, m.fetchAttachments()
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -421,6 +454,23 @@ func (m CardModel) openAttachment(att trello.Attachment) tea.Cmd {
 		}
 		err = exec.Command("open", path).Start()
 		return AttachmentOpenedMsg{Err: err}
+	}
+}
+
+func (m CardModel) deleteChecklist(checklistID string) tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		err := client.DeleteChecklist(checklistID)
+		return ChecklistDeletedMsg{ChecklistID: checklistID, Err: err}
+	}
+}
+
+func (m CardModel) deleteAttachment(attachmentID string) tea.Cmd {
+	client := m.client
+	cardID := m.card.ID
+	return func() tea.Msg {
+		err := client.DeleteAttachment(cardID, attachmentID)
+		return AttachmentDeletedMsg{AttachmentID: attachmentID, Err: err}
 	}
 }
 

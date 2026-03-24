@@ -26,8 +26,8 @@ func (m CardModel) View() string {
 		statusBar = m.helpLine()
 	}
 
-	showChecklist := m.loadingCL || len(m.checklists) > 0 || m.mode == cardAddChecklist || m.mode == cardAddCheckItem
-	showAttachments := len(m.attachments) > 0 || m.mode == cardAddAttachment
+	showChecklist := m.loadingCL || len(m.checklists) > 0 || m.mode == cardAddChecklist || m.mode == cardAddCheckItem || m.mode == cardConfirmDeleteChecklist
+	showAttachments := len(m.attachments) > 0 || m.mode == cardAddAttachment || m.mode == cardConfirmDeleteAttachment
 
 	paneCount := 2 // info + activity always
 	if showChecklist {
@@ -87,7 +87,7 @@ func (m CardModel) View() string {
 }
 
 func (m CardModel) renderInfoPane(width, height, scroll int) string {
-	active := m.mode != cardChecklistPane && m.mode != cardAttachmentsPane && m.mode != cardActivityPane && m.mode != cardAddComment && m.mode != cardAddChecklist && m.mode != cardAddCheckItem && m.mode != cardAddAttachment
+	active := m.mode != cardChecklistPane && m.mode != cardAttachmentsPane && m.mode != cardActivityPane && m.mode != cardAddComment && m.mode != cardAddChecklist && m.mode != cardAddCheckItem && m.mode != cardAddAttachment && m.mode != cardConfirmDeleteChecklist && m.mode != cardConfirmDeleteAttachment
 
 	var b strings.Builder
 
@@ -265,10 +265,18 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 }
 
 func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
-	active := m.mode == cardChecklistPane || m.mode == cardAddChecklist || m.mode == cardAddCheckItem
+	active := m.mode == cardChecklistPane || m.mode == cardAddChecklist || m.mode == cardAddCheckItem || m.mode == cardConfirmDeleteChecklist
 	var b strings.Builder
 
-	if m.mode == cardAddChecklist {
+	if m.mode == cardConfirmDeleteChecklist {
+		refs := m.allCheckItemRefs()
+		clIdx := 0
+		if len(refs) > 0 && m.checkItemIdx < len(refs) {
+			clIdx = refs[m.checkItemIdx].cl
+		}
+		name := m.checklists[clIdx].Name
+		b.WriteString(errorStyle.Render(fmt.Sprintf("Delete checklist \"%s\"? (y/n)", name)))
+	} else if m.mode == cardAddChecklist {
 		b.WriteString(helpStyle.Render("New checklist (enter:create  esc:cancel)") + "\n\n")
 		b.WriteString(m.checklistInput.View())
 	} else if m.mode == cardAddCheckItem {
@@ -315,7 +323,7 @@ func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 
 	title := "Checklist"
 	if m.mode == cardChecklistPane {
-		title += helpStyle.Render("  j/k:navigate  enter:toggle  n:add item  -:new checklist  tab:next  esc:back")
+		title += helpStyle.Render("  j/k:navigate  enter:toggle  n:add item  -:new checklist  d:delete checklist  tab:next  esc:back")
 	}
 	innerW := width - 4
 	if innerW < 10 {
@@ -330,10 +338,13 @@ func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 }
 
 func (m CardModel) renderAttachmentsPane(width, height, cursorIdx int) string {
-	active := m.mode == cardAttachmentsPane || m.mode == cardAddAttachment
+	active := m.mode == cardAttachmentsPane || m.mode == cardAddAttachment || m.mode == cardConfirmDeleteAttachment
 	var b strings.Builder
 
-	if m.mode == cardAddAttachment {
+	if m.mode == cardConfirmDeleteAttachment {
+		name := m.attachments[m.attachmentIdx].Name
+		b.WriteString(errorStyle.Render(fmt.Sprintf("Delete attachment \"%s\"? (y/n)", name)))
+	} else if m.mode == cardAddAttachment {
 		b.WriteString(helpStyle.Render("Add URL attachment (enter:add  esc:cancel)") + "\n\n")
 		b.WriteString(m.checklistInput.View())
 	} else if m.loadingAtt {
@@ -355,7 +366,7 @@ func (m CardModel) renderAttachmentsPane(width, height, cursorIdx int) string {
 
 	title := "Attachments"
 	if m.mode == cardAttachmentsPane {
-		title += helpStyle.Render("  j/k:navigate  o:open  a:add URL  tab:next  esc:back")
+		title += helpStyle.Render("  j/k:navigate  o:open  a:add URL  d:delete  tab:next  esc:back")
 	}
 	availLines := (height - 2) - 2
 	if availLines < 1 {
@@ -505,9 +516,9 @@ func clampScroll(cursorLine, visibleLines int) int {
 
 func (m CardModel) helpLine() string {
 	switch m.mode {
-	case cardChecklistPane, cardAddChecklist, cardAddCheckItem:
+	case cardChecklistPane, cardAddChecklist, cardAddCheckItem, cardConfirmDeleteChecklist:
 		return ""
-	case cardAttachmentsPane, cardAddAttachment:
+	case cardAttachmentsPane, cardAddAttachment, cardConfirmDeleteAttachment:
 		return ""
 	case cardActivityPane:
 		return ""

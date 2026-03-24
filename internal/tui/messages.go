@@ -126,6 +126,16 @@ type AttachmentAddedMsg struct {
 	Err        error
 }
 
+type ChecklistDeletedMsg struct {
+	ChecklistID string
+	Err         error
+}
+
+type AttachmentDeletedMsg struct {
+	AttachmentID string
+	Err          error
+}
+
 type VersionCheckMsg struct {
 	UpdateNotice string
 }

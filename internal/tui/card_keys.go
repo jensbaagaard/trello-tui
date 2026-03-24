@@ -256,6 +256,10 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 					return CheckItemToggledMsg{Err: client.ToggleCheckItem(cardID, checkItemID, newComplete)}
 				}
 			}
+		case "d":
+			if len(m.checklists) > 0 {
+				m.mode = cardConfirmDeleteChecklist
+			}
 		case "n":
 			if len(m.checklists) > 0 {
 				m.mode = cardAddCheckItem
@@ -283,6 +287,22 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 		}
 		return m, nil
 
+	case cardConfirmDeleteChecklist:
+		switch msg.String() {
+		case "y", "Y":
+			refs := m.allCheckItemRefs()
+			clIdx := 0
+			if len(refs) > 0 && m.checkItemIdx < len(refs) {
+				clIdx = refs[m.checkItemIdx].cl
+			}
+			checklistID := m.checklists[clIdx].ID
+			m.mode = cardChecklistPane
+			return m, m.deleteChecklist(checklistID)
+		case "n", "N", "esc":
+			m.mode = cardChecklistPane
+		}
+		return m, nil
+
 	case cardAttachmentsPane:
 		switch msg.String() {
 		case "j", "down":
@@ -297,6 +317,10 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			if len(m.attachments) > 0 && m.attachmentIdx < len(m.attachments) {
 				return m, m.openAttachment(m.attachments[m.attachmentIdx])
 			}
+		case "d":
+			if len(m.attachments) > 0 {
+				m.mode = cardConfirmDeleteAttachment
+			}
 		case "a":
 			m.mode = cardAddAttachment
 			m.checklistInput.Placeholder = "URL..."
@@ -309,6 +333,17 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 		case "esc":
 			m.attScroll = 0
 			m.mode = cardView
+		}
+		return m, nil
+
+	case cardConfirmDeleteAttachment:
+		switch msg.String() {
+		case "y", "Y":
+			att := m.attachments[m.attachmentIdx]
+			m.mode = cardAttachmentsPane
+			return m, m.deleteAttachment(att.ID)
+		case "n", "N", "esc":
+			m.mode = cardAttachmentsPane
 		}
 		return m, nil
 

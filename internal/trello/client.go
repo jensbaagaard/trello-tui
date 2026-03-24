@@ -279,3 +279,11 @@ func (c *Client) AddAttachmentURL(cardID, url string) (Attachment, error) {
 		map[string]string{"url": url}, &att)
 	return att, err
 }
+
+func (c *Client) DeleteChecklist(checklistID string) error {
+	return c.request("DELETE", fmt.Sprintf("/checklists/%s", checklistID), nil, nil)
+}
+
+func (c *Client) DeleteAttachment(cardID, attachmentID string) error {
+	return c.request("DELETE", fmt.Sprintf("/cards/%s/attachments/%s", cardID, attachmentID), nil, nil)
+}
