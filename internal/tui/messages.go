@@ -172,3 +172,5 @@ type CardMovedToBoardMsg struct {
 type VersionCheckMsg struct {
 	UpdateNotice string
 }
+
+type AutoRefreshTickMsg struct{}

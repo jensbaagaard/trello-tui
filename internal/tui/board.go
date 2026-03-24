@@ -58,6 +58,9 @@ type BoardModel struct {
 	archiveCursor      int
 	archiveScrollTop   int
 	archiveFilterText  string
+
+	// Auto-refresh
+	autoRefreshSecs int
 }
 
 func NewBoardModel(client *trello.Client, board trello.Board) BoardModel {
@@ -178,6 +181,16 @@ func (m BoardModel) restoreCard(cardID string) tea.Cmd {
 	}
 }
 
+func (m BoardModel) scheduleAutoRefresh() tea.Cmd {
+	if m.autoRefreshSecs <= 0 {
+		return nil
+	}
+	d := time.Duration(m.autoRefreshSecs) * time.Second
+	return tea.Tick(d, func(time.Time) tea.Msg {
+		return AutoRefreshTickMsg{}
+	})
+}
+
 // ── Update ────────────────────────────────────────────────────────────────────
 
 func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
@@ -203,7 +216,13 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 			return m, nil
 		}
 		m.cardsByList = msg.CardsByList
-		return m, nil
+		return m, m.scheduleAutoRefresh()
+
+	case AutoRefreshTickMsg:
+		if m.mode != boardNav {
+			return m, m.scheduleAutoRefresh()
+		}
+		return m, m.fetchLists()
 
 	case CardCreatedMsg:
 		if msg.Err != nil {

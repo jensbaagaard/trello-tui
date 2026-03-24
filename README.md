@@ -6,7 +6,7 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 
 - **Board browser** with fuzzy filtering
 - **Kanban board view** with responsive columns and horizontal scrolling
-- **Card management** — create, edit, archive, and move cards between lists
+- **Card management** — create, edit, archive, and move cards between lists or across boards
 - **Card detail view** with multiple panes:
   - Info (title, description, labels, members, due date, URL)
   - Checklists with interactive toggle, create/delete checklists and items
@@ -15,8 +15,11 @@ A terminal-based Trello client built with Go and [Bubble Tea](https://github.com
 - **Label management** — create, edit, and delete board labels; create labels inline from the card picker
 - **Inline editing** — title, description, due date, members, and labels
 - **Comments** — view and post comments from the activity pane
+- **Archived cards** — browse and restore archived cards with filtering
 - **Card filtering** — search across titles, descriptions, members, labels, and due dates
 - **Visual indicators** — color-coded labels, member initials, due date warnings, checklist progress
+- **Auto-refresh** — optionally re-fetch board data on a timer
+- **CLI flags** — `--version`, `--board=<name>`, `--auto-refresh=<seconds>`
 - **Version checking** — notifies you when a newer release is available
 - **Keyboard-driven** — Trello-compatible hotkeys, no mouse needed
 
@@ -65,7 +68,10 @@ Or create a config file at `~/.config/trello-tui/config.json` (Linux) / `~/Libra
 ## Usage
 
 ```bash
-trello-tui
+trello-tui                          # launch normally
+trello-tui --board="Sprint"         # jump directly into a board (substring match)
+trello-tui --auto-refresh=30        # refresh board data every 30 seconds
+trello-tui --version                # print version and exit
 ```
 
 ### Keybindings
@@ -89,6 +95,7 @@ trello-tui
 | `c`              | Archive card (confirms with `y`/`n`) |
 | `,` / `.`        | Move card left / right               |
 | `<` / `>`        | Move card to first / last list       |
+| `a`              | View archived cards                  |
 | `L`              | Manage board labels                  |
 | `/`              | Filter cards                         |
 | `enter`          | Open card detail                     |
@@ -105,25 +112,36 @@ trello-tui
 | `d`       | Delete label |
 | `esc`     | Back         |
 
+#### Archived Cards (from board view)
+
+| Key            | Action        |
+| -------------- | ------------- |
+| `j` / `k`      | Navigate      |
+| `enter` / `u`  | Restore card  |
+| `/`            | Filter        |
+| `r`            | Refresh       |
+| `esc`          | Clear filter / back |
+
 #### Card Detail
 
 Keys marked with `*` match Trello's native shortcuts.
 
-| Key       | Action                    |
-| --------- | ------------------------- |
-| `t`       | Edit title `*`            |
-| `e`       | Edit description `*`      |
-| `m`       | Move to list (picker)     |
-| `a`       | Add / remove members      |
-| `l`       | Add / remove labels `*`   |
-| `ctrl+n`  | New label (from picker)   |
-| `d`       | Set / clear due date `*`  |
-| `-`       | Add checklist `*`         |
-| `A`       | Attach URL                |
-| `,` / `.` | Move card left / right    |
-| `<` / `>` | Move to first / last list |
-| `tab`     | Cycle panes               |
-| `esc`     | Back to board             |
+| Key       | Action                              |
+| --------- | ----------------------------------- |
+| `t`       | Edit title `*`                      |
+| `e`       | Edit description `*`                |
+| `m`       | Move to list (`B` for other board)  |
+| `a`       | Add / remove members                |
+| `l`       | Add / remove labels `*`             |
+| `ctrl+n`  | New label (from picker)             |
+| `d`       | Set / clear due date `*`            |
+| `-`       | Add checklist `*`                   |
+| `A`       | Attach URL                          |
+| `c`       | Copy card URL                       |
+| `,` / `.` | Move card left / right              |
+| `<` / `>` | Move to first / last list           |
+| `tab`     | Cycle panes                         |
+| `esc`     | Back to board                       |
 
 #### Checklist Pane
 
@@ -159,11 +177,11 @@ Keys marked with `*` match Trello's native shortcuts.
 
 ## Roadmap
 
-- [ ] Move cards across boards (not just lists)
+- [x] Move cards across boards (not just lists)
 - [ ] Board search / filtering in the board list
-- [ ] CLI flags: `--version`, `--board=<name>`, `--auto-refresh=<seconds>`
+- [x] CLI flags: `--version`, `--board=<name>`, `--auto-refresh=<seconds>`
 - [ ] Global card search across boards and archived cards
-- [ ] View and restore archived cards
+- [x] View and restore archived cards
 - [ ] List management in board view (add, rename, delete, reorder)
 
 ## License

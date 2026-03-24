@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jensbaagaard/trello-tui/internal/trello"
@@ -16,23 +18,27 @@ const (
 )
 
 type AppModel struct {
-	client       *trello.Client
-	screen       screen
-	boardList    BoardListModel
-	board        BoardModel
-	card         CardModel
-	width        int
-	height       int
-	version      string
-	updateNotice string
+	client           *trello.Client
+	screen           screen
+	boardList        BoardListModel
+	board            BoardModel
+	card             CardModel
+	width            int
+	height           int
+	version          string
+	updateNotice     string
+	opts             Options
+	pendingBoardName string
 }
 
-func NewAppModel(client *trello.Client, version string) AppModel {
+func NewAppModel(client *trello.Client, version string, opts Options) AppModel {
 	return AppModel{
-		client:    client,
-		screen:    screenBoardList,
-		boardList: NewBoardListModel(client),
-		version:   version,
+		client:           client,
+		screen:           screenBoardList,
+		boardList:        NewBoardListModel(client),
+		version:          version,
+		opts:             opts,
+		pendingBoardName: opts.BoardName,
 	}
 }
 
@@ -61,6 +67,27 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateNotice = msg.UpdateNotice
 		return m, nil
 
+	case BoardsFetchedMsg:
+		if m.pendingBoardName != "" {
+			name := m.pendingBoardName
+			m.pendingBoardName = ""
+			// Let boardList process the message first
+			m.boardList, _ = m.boardList.Update(msg)
+			if msg.Err == nil {
+				board := findBoardByName(msg.Boards, name)
+				if board != nil {
+					m.board = NewBoardModel(m.client, *board)
+					m.board.autoRefreshSecs = m.opts.AutoRefreshSecs
+					m.screen = screenBoard
+					return m, tea.Batch(
+						m.board.Init(),
+						func() tea.Msg { return tea.WindowSizeMsg{Width: m.width, Height: m.height} },
+					)
+				}
+			}
+			return m, nil
+		}
+
 	case CardMovedMsg:
 		// Update board state when a card is moved from the card detail view
 		if msg.Err == nil && m.screen == screenCard {
@@ -88,6 +115,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				board := m.boardList.SelectedBoard()
 				if board != nil {
 					m.board = NewBoardModel(m.client, *board)
+					m.board.autoRefreshSecs = m.opts.AutoRefreshSecs
 					m.screen = screenBoard
 					return m, tea.Batch(
 						m.board.Init(),
@@ -179,6 +207,20 @@ func (m *AppModel) moveCardInBoard(card trello.Card, fromListID, toListID string
 	}
 	// Add to new list
 	m.board.cardsByList[toListID] = append(m.board.cardsByList[toListID], card)
+}
+
+func findBoardByName(boards []trello.Board, name string) *trello.Board {
+	q := strings.ToLower(name)
+	var match *trello.Board
+	for i, b := range boards {
+		if strings.Contains(strings.ToLower(b.Name), q) {
+			if match != nil {
+				return nil // multiple matches
+			}
+			match = &boards[i]
+		}
+	}
+	return match
 }
 
 var updateNoticeStyle = lipgloss.NewStyle().
