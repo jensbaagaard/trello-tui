@@ -8,6 +8,10 @@ import (
 )
 
 func (m SearchModel) View() string {
+	if m.showHelp {
+		return m.renderSearchHelp()
+	}
+
 	var b strings.Builder
 
 	title := titleStyle.Render("Search Cards")
@@ -84,4 +88,17 @@ func (m SearchModel) View() string {
 	b.WriteString(helpStyle.Render(help))
 
 	return b.String()
+}
+
+func (m SearchModel) renderSearchHelp() string {
+	sections := []helpSection{
+		{Title: "Search Results", Entries: []helpEntry{
+			{"j/k", "Move up/down"},
+			{"enter", "Open card"},
+			{"/", "Search again"},
+			{"?", "Toggle help"},
+			{"esc", "Back"},
+		}},
+	}
+	return renderHelpOverlay("Search — Help", sections, m.width, m.height)
 }

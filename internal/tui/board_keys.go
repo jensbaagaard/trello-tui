@@ -9,6 +9,11 @@ import (
 )
 
 func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
+	if m.showHelp {
+		m.showHelp = false
+		return m, nil
+	}
+
 	if m.mode == boardAddList || m.mode == boardRenameList {
 		return m.handleListInputKey(msg)
 	}
@@ -143,6 +148,8 @@ func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		m.loading = true
 		m.statusMsg = ""
 		return m, m.fetchLists()
+	case "?":
+		m.showHelp = true
 	}
 
 	return m, nil
@@ -250,6 +257,8 @@ func (m BoardModel) handleLabelManagerKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) 
 			if len(m.boardLabels) > 0 && m.labelCursor < len(m.boardLabels) {
 				m.mode = boardLabelConfirmDelete
 			}
+		case "?":
+			m.showHelp = true
 		case "esc":
 			m.mode = boardNav
 			m.statusMsg = ""
@@ -427,6 +436,8 @@ func (m BoardModel) handleArchiveKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		m.archiveScrollTop = 0
 		m.archiveCursor = 0
 		return m, m.fetchArchivedCards()
+	case "?":
+		m.showHelp = true
 	case "esc":
 		if m.archiveFilterText != "" {
 			m.archiveFilterText = ""
@@ -598,6 +609,8 @@ func (m BoardModel) handleMemberManagerKey(msg tea.KeyMsg) (BoardModel, tea.Cmd)
 			if len(m.boardMembers) > 0 {
 				m.mode = boardConfirmRemoveMember
 			}
+		case "?":
+			m.showHelp = true
 		case "esc":
 			m.mode = boardNav
 		}

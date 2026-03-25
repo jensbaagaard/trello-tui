@@ -81,6 +81,7 @@ type CardModel struct {
 	loadingCL    bool
 	loadingAtt   bool
 	loadingCom   bool
+	showHelp     bool
 }
 
 func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, listIndex int) CardModel {

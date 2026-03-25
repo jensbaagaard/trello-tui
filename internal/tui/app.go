@@ -200,7 +200,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			switch m.screen {
 			case screenCard:
-				if m.card.mode != cardView {
+				if m.card.showHelp || m.card.mode != cardView {
 					break
 				}
 				if m.returnToSearch {
@@ -215,12 +215,15 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.screen = screenBoard
 				return m, nil
 			case screenSearch:
+				if m.search.showHelp {
+					break
+				}
 				if !m.search.textInput.Focused() || !m.search.searched {
 					m.screen = screenBoardList
 					return m, nil
 				}
 			case screenBoard:
-				if m.board.mode != boardNav {
+				if m.board.showHelp || m.board.mode != boardNav {
 					break
 				}
 				if m.board.filterText != "" {

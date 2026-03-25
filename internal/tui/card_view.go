@@ -9,6 +9,10 @@ import (
 )
 
 func (m CardModel) View() string {
+	if m.showHelp {
+		return m.renderCardHelp()
+	}
+
 	w := m.width - 2
 	if w < 44 {
 		w = 44
@@ -594,6 +598,44 @@ func wrapHelpText(text string, maxWidth int) string {
 		rendered = append(rendered, helpStyle.Render(l))
 	}
 	return strings.Join(rendered, "\n")
+}
+
+func (m CardModel) renderCardHelp() string {
+	sections := []helpSection{
+		{Title: "Info Pane", Entries: []helpEntry{
+			{"t", "Edit title"},
+			{"e", "Edit description"},
+			{"m", "Move to list"},
+			{"a", "Add/remove members"},
+			{"l", "Add/remove labels"},
+			{"d", "Set due date"},
+			{"c", "Copy card URL"},
+			{",/.", "Move card left/right"},
+			{"</>", "Move card to first/last list"},
+			{"-", "New checklist"},
+			{"A", "Attach URL"},
+		}},
+		{Title: "Navigation", Entries: []helpEntry{
+			{"tab", "Next pane"},
+			{"j/k", "Scroll"},
+			{"esc", "Back"},
+		}},
+		{Title: "Checklist Pane", Entries: []helpEntry{
+			{"enter", "Toggle check item"},
+			{"n", "Add item"},
+			{"-", "New checklist"},
+			{"d", "Delete checklist"},
+		}},
+		{Title: "Attachments Pane", Entries: []helpEntry{
+			{"o", "Open attachment"},
+			{"a", "Add URL"},
+			{"d", "Delete attachment"},
+		}},
+		{Title: "Activity Pane", Entries: []helpEntry{
+			{"n", "New comment (ctrl+s to send)"},
+		}},
+	}
+	return renderHelpOverlay("Card — Help", sections, m.width, m.height)
 }
 
 // ── paneBox ───────────────────────────────────────────────────────────────────

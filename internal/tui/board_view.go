@@ -52,6 +52,10 @@ func (m BoardModel) View() string {
 		return "No lists found on this board."
 	}
 
+	if m.showHelp {
+		return m.renderBoardHelp()
+	}
+
 	if m.mode == boardArchive || m.mode == boardArchiveFilter {
 		return m.renderArchiveView()
 	}
@@ -465,4 +469,71 @@ func truncate(s string, max int) string {
 
 func dimRender(s string) string {
 	return lipgloss.NewStyle().Foreground(dimColor).Render(s)
+}
+
+func (m BoardModel) renderBoardHelp() string {
+	var sections []helpSection
+	switch m.mode {
+	case boardArchive:
+		sections = []helpSection{
+			{Title: "Navigation", Entries: []helpEntry{
+				{"j/k", "Move up/down"},
+				{"enter/u", "Restore card"},
+				{"/", "Filter archived cards"},
+				{"r", "Refresh"},
+				{"esc", "Back (clear filter or exit)"},
+			}},
+		}
+		return renderHelpOverlay("Archived Cards — Help", sections, m.width, m.height)
+	case boardLabelManager:
+		sections = []helpSection{
+			{Title: "Labels", Entries: []helpEntry{
+				{"j/k", "Move up/down"},
+				{"n", "New label"},
+				{"e", "Edit label"},
+				{"d", "Delete label"},
+				{"esc", "Back to board"},
+			}},
+		}
+		return renderHelpOverlay("Label Manager — Help", sections, m.width, m.height)
+	case boardMemberManager:
+		sections = []helpSection{
+			{Title: "Members", Entries: []helpEntry{
+				{"j/k", "Move up/down"},
+				{"n", "Invite member"},
+				{"d", "Remove member"},
+				{"esc", "Back to board"},
+			}},
+		}
+		return renderHelpOverlay("Member Manager — Help", sections, m.width, m.height)
+	}
+
+	sections = []helpSection{
+		{Title: "Navigation", Entries: []helpEntry{
+			{"left/right", "Switch lists"},
+			{"j/k", "Move up/down cards"},
+			{"enter", "Open card"},
+			{"esc", "Back (clear filter or exit)"},
+		}},
+		{Title: "Cards", Entries: []helpEntry{
+			{"n", "New card"},
+			{"c", "Archive card"},
+			{",/.", "Move card left/right"},
+			{"</>", "Move card to first/last list"},
+		}},
+		{Title: "Lists", Entries: []helpEntry{
+			{"N", "New list"},
+			{"R", "Rename list"},
+			{"C", "Archive list"},
+			{"{/}", "Move list left/right"},
+		}},
+		{Title: "Tools", Entries: []helpEntry{
+			{"/", "Filter cards"},
+			{"L", "Label manager"},
+			{"M", "Member manager"},
+			{"a", "View archived cards"},
+			{"r", "Refresh board"},
+		}},
+	}
+	return renderHelpOverlay("Board — Help", sections, m.width, m.height)
 }

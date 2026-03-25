@@ -73,6 +73,8 @@ type BoardModel struct {
 
 	// Auto-refresh
 	autoRefreshSecs int
+
+	showHelp bool
 }
 
 func NewBoardModel(client *trello.Client, board trello.Board) BoardModel {

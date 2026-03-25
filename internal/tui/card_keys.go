@@ -10,6 +10,11 @@ import (
 )
 
 func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
+	if m.showHelp {
+		m.showHelp = false
+		return m, nil
+	}
+
 	switch m.mode {
 	case cardEditTitle:
 		switch msg.String() {
@@ -295,6 +300,9 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 	case cardChecklistPane:
 		refs := m.allCheckItemRefs()
 		switch msg.String() {
+		case "?":
+			m.showHelp = true
+			return m, nil
 		case "j", "down":
 			if m.checkItemIdx < len(refs)-1 {
 				m.checkItemIdx++
@@ -369,6 +377,9 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 
 	case cardAttachmentsPane:
 		switch msg.String() {
+		case "?":
+			m.showHelp = true
+			return m, nil
 		case "j", "down":
 			if m.attachmentIdx < len(m.attachments)-1 {
 				m.attachmentIdx++
@@ -413,6 +424,9 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 
 	case cardActivityPane:
 		switch msg.String() {
+		case "?":
+			m.showHelp = true
+			return m, nil
 		case "j", "down":
 			if m.activityIdx < len(m.actions)-1 {
 				m.activityIdx++
@@ -546,6 +560,8 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 
 	default: // cardView — info pane active
 		switch msg.String() {
+		case "?":
+			m.showHelp = true
 		case "j", "down":
 			m.infoScroll++
 		case "k", "up":

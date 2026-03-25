@@ -17,8 +17,9 @@ type SearchModel struct {
 	loading     bool
 	searched    bool
 	statusMsg   string
-	pendingCard *trello.SearchCard
+	pendingCard  *trello.SearchCard
 	pendingLists []trello.List
+	showHelp     bool
 }
 
 func NewSearchModel(client *trello.Client) SearchModel {
@@ -126,7 +127,15 @@ func (m SearchModel) handleInputKeys(msg tea.KeyMsg) (SearchModel, tea.Cmd) {
 }
 
 func (m SearchModel) handleResultKeys(msg tea.KeyMsg) (SearchModel, tea.Cmd) {
+	if m.showHelp {
+		m.showHelp = false
+		return m, nil
+	}
+
 	switch msg.String() {
+	case "?":
+		m.showHelp = true
+		return m, nil
 	case "j", "down":
 		if m.cursor < len(m.results)-1 {
 			m.cursor++
