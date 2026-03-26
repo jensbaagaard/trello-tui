@@ -25,7 +25,7 @@ func (m CardModel) View() string {
 
 	var statusBar string
 	if m.statusMsg != "" {
-		statusBar = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg)
+		statusBar = successMsgStyle.Render(m.statusMsg)
 	} else {
 		statusBar = m.helpLine()
 	}
@@ -97,7 +97,7 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 
 	switch m.mode {
 	case cardMoveBoard:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render("Move to board") + "\n")
 		b.WriteString(m.pickerFilter.View() + "\n\n")
 		if len(m.allBoards) == 0 {
@@ -112,7 +112,7 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 					s := lipgloss.NewStyle()
 					if i == m.boardIndex {
 						cursor = "▸ "
-						s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+						s = titleStyle
 					}
 					b.WriteString(cursor + s.Render(board.Name) + "\n")
 				}
@@ -121,14 +121,14 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:select  esc:back"))
 
 	case cardMoveBoardList:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render("Move to list on "+m.targetBoard.Name) + "\n\n")
 		for i, l := range m.targetLists {
 			cursor := "  "
 			s := lipgloss.NewStyle()
 			if i == m.targetListIndex {
 				cursor = "▸ "
-				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				s = titleStyle
 			}
 			b.WriteString(cursor + s.Render(l.Name) + "\n")
 		}
@@ -143,14 +143,14 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 		b.WriteString(m.descEdit.View())
 
 	case cardMoveList:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render("Move to list") + "\n\n")
 		for i, l := range m.lists {
 			cursor := "  "
 			s := lipgloss.NewStyle()
 			if i == m.moveIndex {
 				cursor = "▸ "
-				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				s = titleStyle
 			}
 			suffix := ""
 			if i == m.listIndex {
@@ -161,7 +161,7 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:move  B:other board  esc:cancel"))
 
 	case cardAddMember:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render("Add / remove member") + "\n")
 		b.WriteString(m.pickerFilter.View() + "\n\n")
 		if len(m.boardMembers) == 0 {
@@ -176,11 +176,11 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 					s := lipgloss.NewStyle()
 					if i == m.memberIndex {
 						cursor = "▸ "
-						s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+						s = titleStyle
 					}
 					check := "  "
 					if m.isOnCard(member.ID) {
-						check = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓ ")
+						check = successMsgStyle.Render("✓ ")
 					}
 					b.WriteString(cursor + check + s.Render(member.FullName) + "\n")
 				}
@@ -189,7 +189,7 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 		b.WriteString("\n" + helpStyle.Render("enter/space:toggle  esc:close"))
 
 	case cardAddLabel:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render("Add / remove label") + "\n")
 		b.WriteString(m.pickerFilter.View() + "\n\n")
 		if len(m.boardLabels) == 0 {
@@ -204,11 +204,11 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 					rs := lipgloss.NewStyle()
 					if i == m.labelIndex {
 						cursor = "▸ "
-						rs = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+						rs = titleStyle
 					}
 					check := "  "
 					if m.isLabelOnCard(label.ID) {
-						check = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓ ")
+						check = successMsgStyle.Render("✓ ")
 					}
 					name := label.Name
 					if name == "" {
@@ -221,13 +221,13 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 		b.WriteString("\n" + helpStyle.Render("enter/space:toggle  ctrl+n:new label  esc:close"))
 
 	case cardCreateLabel:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render("Create label") + "\n\n")
 		b.WriteString("Name: " + m.labelNameInput.View() + "\n\n")
 		b.WriteString(helpStyle.Render("enter:pick color  esc:cancel"))
 
 	case cardCreateLabelColor:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		name := strings.TrimSpace(m.labelNameInput.Value())
 		if name == "" {
 			name = "(unnamed)"
@@ -238,14 +238,14 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 			s := lipgloss.NewStyle()
 			if i == m.labelColorIdx {
 				cursor = "▸ "
-				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				s = titleStyle
 			}
 			b.WriteString(cursor + labelColor(c).Render("● ") + s.Render(c) + "\n")
 		}
 		b.WriteString("\n" + helpStyle.Render("j/k:navigate  enter:create  esc:back"))
 
 	case cardSetDue:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render("Set due date") + "\n\n")
 		b.WriteString("Date (YYYY-MM-DD, empty to clear):\n\n")
 		b.WriteString(m.dueInput.View())
@@ -253,11 +253,14 @@ func (m CardModel) renderInfoPane(width, height, scroll int) string {
 
 	default:
 		// breadcrumb
-		b.WriteString(helpStyle.Render("in "+m.listName) + "\n\n")
+		crumb := m.listName
+		if m.boardName != "" {
+			crumb = m.boardName + " > " + crumb
+		}
+		b.WriteString(helpStyle.Render(crumb) + "\n\n")
 
 		// title
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).
-			Render(m.card.Name) + "\n")
+		b.WriteString(boldWhiteStyle.Render(m.card.Name) + "\n")
 
 		// labels
 		if len(m.card.Labels) > 0 {
@@ -350,11 +353,11 @@ func (m CardModel) renderChecklistPane(width, height, cursorIdx int) string {
 				itemStyle := lipgloss.NewStyle()
 				if m.mode == cardChecklistPane && flatIdx < len(refs) && m.checkItemIdx == flatIdx {
 					cursor = "▸ "
-					itemStyle = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+					itemStyle = titleStyle
 				}
 				box := "[ ]"
 				if item.State == "complete" {
-					box = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("[x]")
+					box = successMsgStyle.Render("[x]")
 					itemStyle = itemStyle.Foreground(dimColor)
 				}
 				b.WriteString(cursor + box + " " + itemStyle.Render(item.Name) + "\n")
@@ -399,7 +402,7 @@ func (m CardModel) renderAttachmentsPane(width, height, cursorIdx int) string {
 			s := lipgloss.NewStyle()
 			if m.mode == cardAttachmentsPane && i == m.attachmentIdx {
 				cursor = "▸ "
-				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				s = titleStyle
 			}
 			size := formatBytes(att.Bytes)
 			b.WriteString(cursor + s.Render(att.Name) + helpStyle.Render("  "+size) + "\n")
@@ -569,7 +572,10 @@ func (m CardModel) helpLine() string {
 	case cardMoveBoard, cardMoveBoardList:
 		return ""
 	default:
-		return wrapHelpText("t:title  e:desc  m:move  a:members  l:labels  d:due  c:copy url  -:checklist  A:attach URL  ,/.:move lr  tab:next pane  esc:back", m.width-2)
+		if m.pendingAction != "" {
+			return helpStyle.Render(m.pendingAction)
+		}
+		return wrapHelpText("t:title  e:desc  m:move  tab:pane  ?:help  esc:back", m.width-2)
 	}
 }
 

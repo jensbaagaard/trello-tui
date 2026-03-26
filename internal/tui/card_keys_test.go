@@ -3,6 +3,7 @@ package tui
 import (
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jensbaagaard/trello-tui/internal/trello"
 )
 
@@ -177,12 +178,26 @@ func TestCardKeys_QuestionMark_ShowsHelp(t *testing.T) {
 	}
 }
 
-func TestCardKeys_HelpDismissOnAnyKey(t *testing.T) {
+func TestCardKeys_HelpDismissOnEscOrQuestion(t *testing.T) {
 	m := newTestCardModel()
 	m.showHelp = true
 
+	// Random key should NOT dismiss help
 	updated, _ := m.handleKey(key("j"))
+	if !updated.showHelp {
+		t.Error("expected showHelp = true after non-dismiss keypress")
+	}
+
+	// ? should dismiss help
+	updated, _ = m.handleKey(key("?"))
 	if updated.showHelp {
-		t.Error("expected showHelp = false after keypress")
+		t.Error("expected showHelp = false after ?")
+	}
+
+	// esc should also dismiss help
+	m.showHelp = true
+	updated, _ = m.handleKey(specialKey(tea.KeyEsc))
+	if updated.showHelp {
+		t.Error("expected showHelp = false after esc")
 	}
 }

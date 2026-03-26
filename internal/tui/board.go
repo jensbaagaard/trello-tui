@@ -47,12 +47,13 @@ type BoardModel struct {
 	mode       boardMode
 
 	// Display state
-	width     int
-	height    int
-	loading   bool
-	err       error
-	statusMsg string
-	showHelp  bool
+	width         int
+	height        int
+	loading       bool
+	err           error
+	statusMsg     string
+	pendingAction string
+	showHelp      bool
 
 	// General text input (used by boardAddCard, boardFilter, boardAddList, boardRenameList)
 	textInput  textinput.Model
@@ -308,6 +309,7 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 		return m, m.fetchLists()
 
 	case CardCreatedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error creating card: %v", msg.Err)
 			return m, nil
@@ -318,6 +320,7 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 		return m, nil
 
 	case CardArchivedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error archiving card: %v", msg.Err)
 			return m, nil
@@ -335,6 +338,7 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 		return m, nil
 
 	case CardUpdatedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error moving card: %v", msg.Err)
 			return m, nil
@@ -407,6 +411,7 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 		return m, nil
 
 	case ListCreatedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error creating list: %v", msg.Err)
 			return m, nil
@@ -421,6 +426,7 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 		return m, nil
 
 	case ListUpdatedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error updating list: %v", msg.Err)
 			return m, nil
@@ -435,6 +441,7 @@ func (m BoardModel) Update(msg tea.Msg) (BoardModel, tea.Cmd) {
 		return m, nil
 
 	case ListArchivedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error archiving list: %v", msg.Err)
 			return m, nil

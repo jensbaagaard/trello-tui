@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -134,6 +135,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 				m.card = NewCardModel(m.client, card, lists, listIndex)
+				m.card.boardName = m.search.pendingCard.Board.Name
 				m.returnToSearch = true
 				m.screen = screenCard
 				return m, tea.Batch(
@@ -187,6 +189,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 				m.card = NewCardModel(m.client, *card, m.board.lists, fullListIndex)
+				m.card.boardName = m.board.board.Name
 				m.card.boardLabels = m.board.boardLabels
 					m.screen = screenCard
 					return m, tea.Batch(
@@ -299,6 +302,11 @@ var updateNoticeStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#F59E0B"))
 
 func (m AppModel) View() string {
+	if m.width > 0 && m.height > 0 && (m.width < minTermWidth || m.height < minTermHeight) {
+		msg := fmt.Sprintf("Terminal too small (%dx%d)\nMinimum: %dx%d", m.width, m.height, minTermWidth, minTermHeight)
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, helpStyle.Render(msg))
+	}
+
 	var content string
 	switch m.screen {
 	case screenBoardList:

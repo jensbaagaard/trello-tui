@@ -86,6 +86,17 @@ var (
 
 	dueDefaultStyle = lipgloss.NewStyle().
 				Foreground(dimColor)
+
+	// Reusable render styles (avoid recreating in loops)
+	sectionTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+	successMsgStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981"))
+	boldWhiteStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
+)
+
+// Minimum terminal dimensions
+const (
+	minTermWidth  = 60
+	minTermHeight = 20
 )
 
 var memberColors = []lipgloss.Color{

@@ -239,13 +239,13 @@ func (m BoardListModel) View() string {
 		return art + "\n" + "Loading boards..."
 	}
 	if m.mode == boardListCreate {
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		return art + "\n" + sT.Render("New board") + "\n\n" +
 			"Name: " + m.textInput.View() + "\n\n" +
 			helpStyle.Render("enter:next  esc:cancel")
 	}
 	if m.mode == boardListWorkspacePick {
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		var b strings.Builder
 		b.WriteString(art + "\n" + sT.Render("Pick workspace for: "+m.pendingName) + "\n\n")
 		if m.loadingOrgs {
@@ -259,7 +259,7 @@ func (m BoardListModel) View() string {
 				s := lipgloss.NewStyle()
 				if i == m.orgCursor {
 					cursor = "▸ "
-					s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+					s = titleStyle
 				}
 				b.WriteString(cursor + s.Render(org.DisplayName) + "\n")
 			}
@@ -269,7 +269,7 @@ func (m BoardListModel) View() string {
 	}
 	view := art + m.list.View()
 	if m.statusMsg != "" {
-		view += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg)
+		view += "\n" + successMsgStyle.Render(m.statusMsg)
 	}
 	return view
 }

@@ -97,10 +97,12 @@ type CardModel struct {
 	actScroll  int
 
 	// Display state
-	width     int
-	height    int
-	statusMsg string
-	showHelp  bool
+	width         int
+	height        int
+	statusMsg     string
+	pendingAction string
+	showHelp      bool
+	boardName     string
 
 	// Loading indicators
 	loadingCL  bool
@@ -184,6 +186,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		m.commentInput.SetWidth(msg.Width - 10)
 
 	case CardUpdatedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 			return m, nil
@@ -201,6 +204,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		return m, nil
 
 	case CardMovedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error moving: %v", msg.Err)
 			return m, nil
@@ -240,12 +244,14 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		return m, nil
 
 	case MemberToggledMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 		}
 		return m, nil
 
 	case LabelToggledMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 		}
@@ -303,12 +309,14 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		return m, nil
 
 	case CheckItemToggledMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 		}
 		return m, nil
 
 	case CommentAddedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 			return m, nil
@@ -318,6 +326,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		return m, nil
 
 	case ChecklistCreatedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 			return m, nil
@@ -328,6 +337,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		return m, nil
 
 	case CheckItemCreatedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 			return m, nil
@@ -342,6 +352,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		return m, nil
 
 	case AttachmentAddedMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.Err)
 			return m, nil
@@ -425,6 +436,7 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 		return m, nil
 
 	case CardMovedToBoardMsg:
+		m.pendingAction = ""
 		if msg.Err != nil {
 			m.statusMsg = fmt.Sprintf("Error moving card: %v", msg.Err)
 			m.mode = cardView

@@ -125,14 +125,16 @@ func (m BoardModel) View() string {
 		status = errorStyle.Render(fmt.Sprintf("Archive list \"%s\"? (y/n)", name))
 	} else if m.statusMsg != "" {
 		status = m.statusMsg
+	} else if m.pendingAction != "" {
+		status = helpStyle.Render(m.pendingAction)
 	} else if m.filterText != "" {
-		status = helpStyle.Render(fmt.Sprintf("filter: %s  ←→:lists  j/k:cards  /:edit filter  esc:clear filter", m.filterText))
+		status = helpStyle.Render(fmt.Sprintf("filter: \"%s\"  esc:clear  /:edit  ?:help", m.filterText))
 	} else {
-		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  a:archived  L:labels  N:new list  R:rename list  C:archive list  {/}:move list  enter:open  /:filter  r:refresh  esc:back")
+		status = helpStyle.Render("←→:lists  j/k:cards  enter:open  n:new card  /:filter  ?:help")
 	}
 
 	var out strings.Builder
-	out.WriteString(titleStyle.Render(m.board.Name))
+	out.WriteString(helpStyle.Render("Boards > ") + titleStyle.Render(m.board.Name))
 	out.WriteString(scrollHint)
 	out.WriteString("\n")
 	out.WriteString(board)
@@ -151,13 +153,13 @@ func (m BoardModel) renderLabelManager() string {
 		if m.mode == boardLabelEdit {
 			action = "Edit"
 		}
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render(action+" label") + "\n\n")
 		b.WriteString("Name: " + m.labelNameInput.View() + "\n\n")
 		b.WriteString(helpStyle.Render("enter:pick color  esc:cancel"))
 
 	case boardLabelColorPick:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		name := strings.TrimSpace(m.labelNameInput.Value())
 		if name == "" {
 			name = "(unnamed)"
@@ -168,7 +170,7 @@ func (m BoardModel) renderLabelManager() string {
 			s := lipgloss.NewStyle()
 			if i == m.labelColorIdx {
 				cursor = "▸ "
-				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				s = titleStyle
 			}
 			b.WriteString(cursor + labelColor(c).Render("● ") + s.Render(c) + "\n")
 		}
@@ -194,7 +196,7 @@ func (m BoardModel) renderLabelManager() string {
 				s := lipgloss.NewStyle()
 				if i == m.labelCursor {
 					cursor = "▸ "
-					s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+					s = titleStyle
 				}
 				name := label.Name
 				if name == "" {
@@ -205,7 +207,7 @@ func (m BoardModel) renderLabelManager() string {
 		}
 		b.WriteString("\n")
 		if m.statusMsg != "" {
-			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg) + "\n")
+			b.WriteString(successMsgStyle.Render(m.statusMsg) + "\n")
 		}
 		b.WriteString(helpStyle.Render("j/k:navigate  n:new  e:edit  d:delete  esc:back"))
 	}
@@ -219,7 +221,7 @@ func (m BoardModel) renderMemberManager() string {
 
 	switch m.mode {
 	case boardInviteMember:
-		sT := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+		sT := sectionTitleStyle
 		b.WriteString(sT.Render("Invite member") + "\n\n")
 		b.WriteString("Email: " + m.memberEmailInput.View() + "\n\n")
 		b.WriteString(helpStyle.Render("enter:invite  esc:cancel"))
@@ -246,7 +248,7 @@ func (m BoardModel) renderMemberManager() string {
 				s := lipgloss.NewStyle()
 				if i == m.memberCursor {
 					cursor = "▸ "
-					s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+					s = titleStyle
 				}
 				name := mem.FullName
 				if name == "" {
@@ -257,7 +259,7 @@ func (m BoardModel) renderMemberManager() string {
 		}
 		b.WriteString("\n")
 		if m.statusMsg != "" {
-			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg) + "\n")
+			b.WriteString(successMsgStyle.Render(m.statusMsg) + "\n")
 		}
 		b.WriteString(helpStyle.Render("j/k:navigate  n:invite  d:remove  esc:back"))
 	}
@@ -293,7 +295,7 @@ func (m BoardModel) renderArchiveView() string {
 			s := lipgloss.NewStyle()
 			if i == m.archiveCursor {
 				cursor = "▸ "
-				s = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				s = titleStyle
 			}
 			listName := card.IDList
 			for _, l := range m.lists {
@@ -317,7 +319,7 @@ func (m BoardModel) renderArchiveView() string {
 	if m.mode == boardArchiveFilter {
 		b.WriteString("Filter: " + m.textInput.View() + "\n")
 	} else if m.statusMsg != "" {
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(m.statusMsg) + "\n")
+		b.WriteString(successMsgStyle.Render(m.statusMsg) + "\n")
 	} else if m.archiveFilterText != "" {
 		b.WriteString(helpStyle.Render(fmt.Sprintf("filter: %s", m.archiveFilterText)) + "\n")
 	}
@@ -429,9 +431,9 @@ func renderCard(c trello.Card, width int, selected bool) string {
 	}
 	if c.Badges.CheckItems > 0 {
 		checkBadge := fmt.Sprintf("☑ %d/%d", c.Badges.CheckItemsChecked, c.Badges.CheckItems)
-		s := lipgloss.NewStyle().Foreground(dimColor)
+		s := helpStyle
 		if c.Badges.CheckItemsChecked == c.Badges.CheckItems {
-			s = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981"))
+			s = successMsgStyle
 		}
 		bottomParts = append(bottomParts, s.Render(checkBadge))
 	}
@@ -485,7 +487,7 @@ func truncate(s string, max int) string {
 }
 
 func dimRender(s string) string {
-	return lipgloss.NewStyle().Foreground(dimColor).Render(s)
+	return helpStyle.Render(s)
 }
 
 func (m BoardModel) renderBoardHelp() string {

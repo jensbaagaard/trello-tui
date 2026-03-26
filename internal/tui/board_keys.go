@@ -10,7 +10,9 @@ import (
 
 func (m BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 	if m.showHelp {
-		m.showHelp = false
+		if msg.String() == "?" || msg.String() == "esc" {
+			m.showHelp = false
+		}
 		return m, nil
 	}
 
@@ -164,6 +166,7 @@ func (m BoardModel) handleAddCardKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 			return m, nil
 		}
 		m.mode = boardNav
+		m.pendingAction = "Creating card..."
 		return m, m.createCard(name)
 	case "esc":
 		m.mode = boardNav
@@ -181,6 +184,7 @@ func (m BoardModel) handleConfirmArchiveKey(msg tea.KeyMsg) (BoardModel, tea.Cmd
 		card := m.selectedCard()
 		if card != nil {
 			m.mode = boardNav
+			m.pendingAction = "Archiving card..."
 			return m, m.archiveCard(card.ID)
 		}
 		m.mode = boardNav
@@ -398,6 +402,7 @@ func (m BoardModel) doMoveCard(card *trello.Card, srcListID string, targetFullId
 	m.ensureCardVisible()
 	m.ensureListVisible()
 
+	m.pendingAction = "Moving card..."
 	client := m.client
 	cardID := card.ID
 	targetListID := targetList.ID
@@ -485,11 +490,13 @@ func (m BoardModel) handleListInputKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		}
 		if m.mode == boardAddList {
 			m.mode = boardNav
+			m.pendingAction = "Creating list..."
 			return m, m.createList(name)
 		}
 		// boardRenameList
 		listID := m.currentListID()
 		m.mode = boardNav
+		m.pendingAction = "Renaming list..."
 		return m, m.renameList(listID, name)
 	case "esc":
 		m.mode = boardNav
@@ -507,6 +514,7 @@ func (m BoardModel) handleConfirmArchiveListKey(msg tea.KeyMsg) (BoardModel, tea
 		listID := m.currentListID()
 		if listID != "" {
 			m.mode = boardNav
+			m.pendingAction = "Archiving list..."
 			return m, m.archiveList(listID)
 		}
 		m.mode = boardNav

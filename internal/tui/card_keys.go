@@ -11,7 +11,9 @@ import (
 
 func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 	if m.showHelp {
-		m.showHelp = false
+		if msg.String() == "?" || msg.String() == "esc" {
+			m.showHelp = false
+		}
 		return m, nil
 	}
 
@@ -23,6 +25,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			if name != "" {
 				m.card.Name = name
 				m.mode = cardView
+				m.pendingAction = "Saving title..."
 				return m, m.updateCard(map[string]string{"name": name})
 			}
 			m.mode = cardView
@@ -41,6 +44,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			desc := m.descEdit.Value()
 			m.card.Desc = desc
 			m.mode = cardView
+			m.pendingAction = "Saving description..."
 			return m, m.updateCard(map[string]string{"desc": desc})
 		default:
 			var cmd tea.Cmd
@@ -60,6 +64,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			}
 		case "enter":
 			if m.moveIndex != m.listIndex {
+				m.pendingAction = "Moving card..."
 				return m, m.moveToList(m.moveIndex)
 			}
 			m.mode = cardView
@@ -153,12 +158,14 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				for i, cm := range m.card.Members {
 					if cm.ID == memberID {
 						m.card.Members = append(m.card.Members[:i], m.card.Members[i+1:]...)
+						m.pendingAction = "Updating member..."
 						return m, func() tea.Msg {
 							return MemberToggledMsg{Err: client.RemoveMemberFromCard(cardID, memberID)}
 						}
 					}
 				}
 				m.card.Members = append(m.card.Members, member)
+				m.pendingAction = "Updating member..."
 				return m, func() tea.Msg {
 					return MemberToggledMsg{Err: client.AddMemberToCard(cardID, memberID)}
 				}
@@ -197,12 +204,14 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				for i, cl := range m.card.Labels {
 					if cl.ID == labelID {
 						m.card.Labels = append(m.card.Labels[:i], m.card.Labels[i+1:]...)
+						m.pendingAction = "Updating label..."
 						return m, func() tea.Msg {
 							return LabelToggledMsg{Err: client.RemoveLabelFromCard(cardID, labelID)}
 						}
 					}
 				}
 				m.card.Labels = append(m.card.Labels, label)
+				m.pendingAction = "Updating label..."
 				return m, func() tea.Msg {
 					return LabelToggledMsg{Err: client.AddLabelToCard(cardID, labelID)}
 				}
@@ -278,6 +287,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			if val == "" {
 				m.card.Due = ""
 				m.card.DueComplete = false
+				m.pendingAction = "Saving due date..."
 				return m, m.updateCard(map[string]string{"due": ""})
 			}
 			t, err := time.Parse("2006-01-02", val)
@@ -287,6 +297,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			}
 			dueStr := t.UTC().Format(time.RFC3339)
 			m.card.Due = dueStr
+			m.pendingAction = "Saving due date..."
 			return m, m.updateCard(map[string]string{"due": dueStr})
 		case "esc":
 			m.mode = cardView
@@ -324,6 +335,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				client := m.client
 				cardID := m.card.ID
 				checkItemID := item.ID
+				m.pendingAction = "Toggling item..."
 				return m, func() tea.Msg {
 					return CheckItemToggledMsg{Err: client.ToggleCheckItem(cardID, checkItemID, newComplete)}
 				}
@@ -458,6 +470,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				return m, nil
 			}
 			m.mode = cardActivityPane
+			m.pendingAction = "Adding comment..."
 			client := m.client
 			cardID := m.card.ID
 			return m, func() tea.Msg {
@@ -482,6 +495,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				return m, nil
 			}
 			m.mode = cardView
+			m.pendingAction = "Creating checklist..."
 			client := m.client
 			cardID := m.card.ID
 			return m, func() tea.Msg {
@@ -516,6 +530,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				checklistID = m.checklists[len(m.checklists)-1].ID
 			}
 			m.mode = cardChecklistPane
+			m.pendingAction = "Adding item..."
 			client := m.client
 			return m, func() tea.Msg {
 				item, err := client.CreateCheckItem(checklistID, name)
@@ -543,6 +558,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 				return m, nil
 			}
 			m.mode = backMode
+			m.pendingAction = "Adding attachment..."
 			client := m.client
 			cardID := m.card.ID
 			return m, func() tea.Msg {

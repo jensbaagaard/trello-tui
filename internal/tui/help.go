@@ -27,14 +27,14 @@ func renderHelpOverlay(title string, sections []helpSection, width, height int) 
 
 	var b strings.Builder
 
-	heading := lipgloss.NewStyle().Bold(true).Foreground(primaryColor).Render(title)
+	heading := titleStyle.Render(title)
 	b.WriteString(heading + "\n\n")
 
-	keyStyle := lipgloss.NewStyle().Foreground(secondaryColor).Bold(true)
+	keyStyle := sectionTitleStyle
 
 	for i, sec := range sections {
 		if sec.Title != "" {
-			b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Render(sec.Title) + "\n")
+			b.WriteString(boldWhiteStyle.Render(sec.Title) + "\n")
 		}
 		for _, e := range sec.Entries {
 			b.WriteString("  " + keyStyle.Render(e.Key) + "  " + helpStyle.Render(e.Desc) + "\n")

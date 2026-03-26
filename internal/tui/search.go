@@ -128,7 +128,9 @@ func (m SearchModel) handleInputKeys(msg tea.KeyMsg) (SearchModel, tea.Cmd) {
 
 func (m SearchModel) handleResultKeys(msg tea.KeyMsg) (SearchModel, tea.Cmd) {
 	if m.showHelp {
-		m.showHelp = false
+		if msg.String() == "?" || msg.String() == "esc" {
+			m.showHelp = false
+		}
 		return m, nil
 	}
 
