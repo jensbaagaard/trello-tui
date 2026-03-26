@@ -2,8 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -513,7 +516,26 @@ func (m CardModel) openAttachment(att trello.Attachment) tea.Cmd {
 		if err != nil {
 			return AttachmentOpenedMsg{Err: err}
 		}
-		err = exec.Command("open", path).Start()
+
+		// Platform-aware system viewer
+		var cmd *exec.Cmd
+		switch runtime.GOOS {
+		case "darwin":
+			cmd = exec.Command("open", path)
+		case "windows":
+			cmd = exec.Command("cmd", "/c", "start", "", path)
+		default:
+			cmd = exec.Command("xdg-open", path)
+		}
+
+		err = cmd.Start()
+
+		// Schedule temp file cleanup after the viewer has had time to read it
+		go func() {
+			time.Sleep(30 * time.Second)
+			os.Remove(path)
+		}()
+
 		return AttachmentOpenedMsg{Err: err}
 	}
 }

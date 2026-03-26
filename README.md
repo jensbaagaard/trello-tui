@@ -214,6 +214,20 @@ Keys marked with `*` match Trello's native shortcuts.
 
 - [x] Create board and invite members
 
+### Code Quality Action Plan
+
+Detailed plans live in the [`plans/`](plans/) directory, organized by week:
+
+| Week | Plan | Focus |
+|------|------|-------|
+| 1a | [Security — Critical Fixes](plans/week-1a-security-critical.md) | Attachment sanitization, credential leakage, error handling |
+| 1b | [Security — Hardening](plans/week-1b-security-hardening.md) | HTTP timeouts, TLS config, error recovery UX |
+| 2a | [UX Quick Wins](plans/week-2a-ux-quick-wins.md) | Help screen gaps, accessibility, search cursor, truncation |
+| 2b | [Go Improvements](plans/week-2b-go-improvements.md) | Performance (label map, strings.Builder), type safety, error wrapping |
+| 3a | [Documentation](plans/week-3a-documentation.md) | CLAUDE.md, state machine docs, struct field grouping |
+| 3b | [Testing](plans/week-3b-testing.md) | Keyboard handler tests, client error paths, search tests, constants |
+| 4 | [LLM Optimization](plans/week-4-llm-optimization.md) | Refactor Update() methods, APIError type, table-driven tests |
+
 ## License
 
 MIT

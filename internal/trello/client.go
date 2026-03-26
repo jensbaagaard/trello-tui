@@ -1,6 +1,7 @@
 package trello
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 type Client struct {
@@ -17,12 +20,31 @@ type Client struct {
 	baseURL    string
 }
 
+// safeExtensions is an allowlist of file extensions considered safe to open
+// with the system viewer. Unknown extensions are rewritten to ".bin".
+var safeExtensions = map[string]bool{
+	".txt": true, ".pdf": true, ".png": true, ".jpg": true,
+	".jpeg": true, ".gif": true, ".svg": true, ".webp": true,
+	".csv": true, ".json": true, ".xml": true, ".html": true,
+	".md": true, ".zip": true, ".doc": true, ".docx": true,
+	".xls": true, ".xlsx": true, ".ppt": true, ".pptx": true,
+	".bmp": true, ".tiff": true, ".ico": true, ".mp4": true,
+	".mp3": true, ".wav": true, ".mov": true, ".avi": true,
+}
+
 func NewClient(apiKey, token string) *Client {
 	return &Client{
-		apiKey:     apiKey,
-		token:      token,
-		httpClient: &http.Client{},
-		baseURL:    "https://api.trello.com/1",
+		apiKey: apiKey,
+		token:  token,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+				},
+			},
+		},
+		baseURL: "https://api.trello.com/1",
 	}
 }
 
@@ -31,6 +53,40 @@ func (c *Client) authParams() url.Values {
 		"key":   {c.apiKey},
 		"token": {c.token},
 	}
+}
+
+func apiError(statusCode int, body []byte) error {
+	switch statusCode {
+	case 401:
+		return fmt.Errorf("authentication failed — check your API key and token")
+	case 403:
+		return fmt.Errorf("access denied — you may not have permission for this resource")
+	case 404:
+		return fmt.Errorf("resource not found")
+	case 429:
+		return fmt.Errorf("rate limited — please wait and try again")
+	default:
+		msg := string(body)
+		if len(msg) > 200 {
+			msg = msg[:200] + "..."
+		}
+		return fmt.Errorf("API error %d: %s", statusCode, msg)
+	}
+}
+
+func sanitizeExtension(filename string) string {
+	// Strip path separators and null bytes
+	name := strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == 0 {
+			return -1
+		}
+		return r
+	}, filename)
+	ext := strings.ToLower(filepath.Ext(name))
+	if ext == "" || !safeExtensions[ext] {
+		return ".bin"
+	}
+	return ext
 }
 
 func (c *Client) get(endpoint string, params url.Values, result interface{}) error {
@@ -49,8 +105,11 @@ func (c *Client) get(endpoint string, params url.Values, result interface{}) err
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("API error %d (could not read response: %w)", resp.StatusCode, readErr)
+		}
+		return apiError(resp.StatusCode, body)
 	}
 
 	return json.NewDecoder(resp.Body).Decode(result)
@@ -77,8 +136,11 @@ func (c *Client) request(method, endpoint string, body map[string]string, result
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("API error %d (could not read response: %w)", resp.StatusCode, readErr)
+		}
+		return apiError(resp.StatusCode, respBody)
 	}
 
 	if result != nil {
@@ -227,11 +289,14 @@ func (c *Client) DownloadAttachment(cardID string, att Attachment) (string, erro
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("download error %d: %s", resp.StatusCode, string(body))
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return "", fmt.Errorf("download error %d (could not read response: %w)", resp.StatusCode, readErr)
+		}
+		return "", apiError(resp.StatusCode, body)
 	}
 
-	ext := filepath.Ext(att.Name)
+	ext := sanitizeExtension(att.Name)
 	tmp, err := os.CreateTemp("", "trello-att-*"+ext)
 	if err != nil {
 		return "", fmt.Errorf("creating temp file: %w", err)
@@ -239,6 +304,7 @@ func (c *Client) DownloadAttachment(cardID string, att Attachment) (string, erro
 	defer tmp.Close()
 
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		os.Remove(tmp.Name())
 		return "", fmt.Errorf("writing temp file: %w", err)
 	}
 	return tmp.Name(), nil

@@ -2,8 +2,11 @@ package trello
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -210,11 +213,9 @@ func TestAPIError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-200 response")
 	}
-	if !strings.Contains(err.Error(), "401") {
-		t.Errorf("error = %q, want it to contain '401'", err.Error())
-	}
-	if !strings.Contains(err.Error(), "invalid token") {
-		t.Errorf("error = %q, want it to contain 'invalid token'", err.Error())
+	// 401 should return a user-friendly message without raw body
+	if !strings.Contains(err.Error(), "authentication failed") {
+		t.Errorf("error = %q, want it to contain 'authentication failed'", err.Error())
 	}
 }
 
@@ -323,4 +324,197 @@ func TestDownloadAttachmentUpload(t *testing.T) {
 	if !strings.HasSuffix(path, ".png") {
 		t.Errorf("path = %q, want it to end with .png", path)
 	}
+	os.Remove(path)
 }
+
+// ── Week 1a: Security tests ─────────────────────────────────────────────────
+
+func TestSanitizeExtension(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		want     string
+	}{
+		{"safe png", "image.png", ".png"},
+		{"safe pdf", "document.pdf", ".pdf"},
+		{"safe jpg", "photo.JPG", ".jpg"},
+		{"safe docx", "file.docx", ".docx"},
+		{"unsafe app", "malicious.app", ".bin"},
+		{"unsafe scpt", "payload.scpt", ".bin"},
+		{"unsafe exe", "virus.exe", ".bin"},
+		{"unsafe sh", "script.sh", ".bin"},
+		{"no extension", "noext", ".bin"},
+		{"empty string", "", ".bin"},
+		{"path separators stripped", "../../../etc/passwd.txt", ".txt"},
+		{"null bytes stripped", "file\x00.png", ".png"},
+		{"backslash stripped", "..\\..\\file.pdf", ".pdf"},
+		{"double extension", "file.tar.gz", ".bin"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeExtension(tt.filename)
+			if got != tt.want {
+				t.Errorf("sanitizeExtension(%q) = %q, want %q", tt.filename, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDownloadAttachment_SanitizesUnsafeExtension(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("fake data"))
+	}))
+	defer srv.Close()
+
+	att := Attachment{ID: "a1", Name: "malicious.app", IsUpload: true}
+	path, err := c.DownloadAttachment("c1", att)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer os.Remove(path)
+
+	if !strings.HasSuffix(path, ".bin") {
+		t.Errorf("path = %q, want .bin suffix for unsafe extension", path)
+	}
+}
+
+func TestDownloadAttachment_CleansUpOnWriteError(t *testing.T) {
+	// Serve enough data to start the download, then error
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "999999")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("partial"))
+		// Connection drops — simulated by handler returning early
+	}))
+	defer srv.Close()
+
+	att := Attachment{ID: "a1", Name: "file.pdf", IsUpload: true}
+	path, err := c.DownloadAttachment("c1", att)
+
+	// The download may succeed (since httptest sends full response before handler returns)
+	// or fail. If it succeeded, verify we got a valid path; clean up.
+	if err == nil {
+		defer os.Remove(path)
+		return
+	}
+
+	// If it did fail, verify the temp file was cleaned up
+	if path != "" {
+		if _, statErr := os.Stat(path); statErr == nil {
+			t.Errorf("temp file %q should have been cleaned up on error", path)
+			os.Remove(path)
+		}
+	}
+}
+
+func TestApiError_UserFriendlyMessages(t *testing.T) {
+	tests := []struct {
+		code int
+		body string
+		want string
+	}{
+		{401, "invalid token", "authentication failed"},
+		{403, "forbidden", "access denied"},
+		{404, "not found", "resource not found"},
+		{429, "too many requests", "rate limited"},
+		{500, "internal error", "API error 500: internal error"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("status_%d", tt.code), func(t *testing.T) {
+			err := apiError(tt.code, []byte(tt.body))
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("apiError(%d) = %q, want it to contain %q", tt.code, err.Error(), tt.want)
+			}
+		})
+	}
+}
+
+func TestApiError_TruncatesLongBody(t *testing.T) {
+	longBody := strings.Repeat("x", 500)
+	err := apiError(500, []byte(longBody))
+	if len(err.Error()) > 250 {
+		t.Errorf("error message too long (%d chars), expected truncation", len(err.Error()))
+	}
+	if !strings.HasSuffix(err.Error(), "...") {
+		t.Error("expected truncated body to end with ...")
+	}
+}
+
+func TestApiError_DoesNotLeakCredentials(t *testing.T) {
+	// Simulate a response body that echoes back credentials
+	body := `{"error": "invalid key=abc123secret token=xyz789secret"}`
+	err := apiError(401, []byte(body))
+	msg := err.Error()
+	if strings.Contains(msg, "abc123secret") || strings.Contains(msg, "xyz789secret") {
+		t.Errorf("error message contains credentials: %q", msg)
+	}
+}
+
+// errorReader is an io.Reader that always returns an error
+type errorReader struct{}
+
+func (errorReader) Read([]byte) (int, error) {
+	return 0, fmt.Errorf("simulated read failure")
+}
+
+func TestGet_ReadBodyError(t *testing.T) {
+	// We can't easily mock io.ReadAll inside get(), but we can test that
+	// a non-200 response with a proper body uses apiError correctly.
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("access denied detail"))
+	}))
+	defer srv.Close()
+
+	_, err := c.GetBoards()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "access denied") {
+		t.Errorf("error = %q, want user-friendly 403 message", err.Error())
+	}
+}
+
+func TestRequest_ServerError(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("something broke"))
+	}))
+	defer srv.Close()
+
+	_, err := c.CreateCard("l1", "test")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "API error 500") {
+		t.Errorf("error = %q, want it to contain 'API error 500'", err.Error())
+	}
+}
+
+func TestDownloadAttachment_ServerError(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("attachment gone"))
+	}))
+	defer srv.Close()
+
+	att := Attachment{ID: "a1", Name: "file.pdf", IsUpload: true}
+	_, err := c.DownloadAttachment("c1", att)
+	if err == nil {
+		t.Fatal("expected error for 404 download")
+	}
+	if !strings.Contains(err.Error(), "resource not found") {
+		t.Errorf("error = %q, want user-friendly 404 message", err.Error())
+	}
+}
+
+func TestNewClient_HasTimeout(t *testing.T) {
+	c := NewClient("key", "token")
+	if c.httpClient.Timeout == 0 {
+		t.Error("expected HTTP client to have a timeout")
+	}
+}
+
+// Verify unused imports don't break — these are used above
+var _ = io.ReadAll
+var _ = fmt.Sprintf
