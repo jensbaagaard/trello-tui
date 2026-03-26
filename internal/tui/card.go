@@ -182,8 +182,13 @@ func (m CardModel) Update(msg tea.Msg) (CardModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.descEdit.SetWidth(msg.Width - 10)
-		m.commentInput.SetWidth(msg.Width - 10)
+		// outer padding(2) + pane border(2) + pane padding(2) + paneBox Width includes padding
+		textW := msg.Width - 2 - 4 - 2
+		if textW < 20 {
+			textW = 20
+		}
+		m.descEdit.SetWidth(textW)
+		m.commentInput.SetWidth(textW)
 
 	case CardUpdatedMsg:
 		m.pendingAction = ""

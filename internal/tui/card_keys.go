@@ -600,9 +600,9 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			return m, textinput.Blink
 		case "e":
 			m.mode = cardEditDesc
-			m.descEdit.SetValue(m.card.Desc)
-			// size to fill the info pane
-			available := m.height
+			// size to fill the info pane — must set dimensions BEFORE SetValue
+			// so the textarea wraps text at the correct width
+			available := m.height - 3 // match View()'s available calculation
 			if available < 24 {
 				available = 24
 			}
@@ -620,7 +620,8 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			if pane1H < minInfoPaneHeight {
 				pane1H = minInfoPaneHeight
 			}
-			innerW := m.width - 2 - 4 // outer padding(2) + pane borders+padding(4)
+			// outer padding(2) + pane border(2) + pane padding(2) + paneBox Width includes padding
+			innerW := m.width - 2 - 4 - 2
 			if innerW < 20 {
 				innerW = 20
 			}
@@ -630,6 +631,7 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			}
 			m.descEdit.SetWidth(innerW)
 			m.descEdit.SetHeight(innerH)
+			m.descEdit.SetValue(m.card.Desc)
 			m.descEdit.Focus()
 			return m, textarea.Blink
 		case "m":
