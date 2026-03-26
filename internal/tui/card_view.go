@@ -606,8 +606,10 @@ func (m CardModel) renderCardHelp() string {
 			{"t", "Edit title"},
 			{"e", "Edit description"},
 			{"m", "Move to list"},
+			{"B", "Move to another board"},
 			{"a", "Add/remove members"},
 			{"l", "Add/remove labels"},
+			{"ctrl+n", "Create new label (from picker)"},
 			{"d", "Set due date"},
 			{"c", "Copy card URL"},
 			{",/.", "Move card left/right"},
@@ -618,6 +620,7 @@ func (m CardModel) renderCardHelp() string {
 		{Title: "Navigation", Entries: []helpEntry{
 			{"tab", "Next pane"},
 			{"j/k", "Scroll"},
+			{"?", "Toggle help"},
 			{"esc", "Back"},
 		}},
 		{Title: "Checklist Pane", Entries: []helpEntry{

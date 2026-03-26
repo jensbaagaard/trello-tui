@@ -142,10 +142,10 @@ The `truncate()` helper already exists in `board_view.go:456-468`.
 
 ## Checklist
 
-- [ ] Add `B`, `ctrl+n` to card help overlay
-- [ ] Add `?` hint to all help section footers
-- [ ] Standardize label pills to `●` across board and card views
-- [ ] Verify due date icons render on board cards (accessibility)
-- [ ] Preserve search cursor/scroll on return from card view
-- [ ] Truncate long card names in search results
-- [ ] Run `go test ./...` pass
+- [x] Add `B`, `ctrl+n` to card help overlay
+- [x] Add `?` hint to board and card help sections
+- [ ] ~~Standardize label pills to `●`~~ — kept `━━` on board (preferred by user)
+- [x] Verify due date icons render on board cards (accessibility) — already working via `formatDue()`
+- [x] Preserve search cursor/scroll on return from card view — verified + regression test added
+- [x] Truncate long card names in search results
+- [x] Run `go test ./...` pass

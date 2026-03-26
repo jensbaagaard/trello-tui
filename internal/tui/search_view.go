@@ -65,7 +65,15 @@ func (m SearchModel) View() string {
 				listName = "?"
 			}
 
-			line := fmt.Sprintf("%s%s  [%s] → %s", prefix, card.Name, boardName, listName)
+			cardName := card.Name
+		if m.width > 0 {
+			maxNameW := m.width - len(prefix) - len(boardName) - len(listName) - 10
+			if maxNameW < 20 {
+				maxNameW = 20
+			}
+			cardName = truncate(cardName, maxNameW)
+		}
+		line := fmt.Sprintf("%s%s  [%s] → %s", prefix, cardName, boardName, listName)
 			if card.Closed {
 				line += " (archived)"
 			}

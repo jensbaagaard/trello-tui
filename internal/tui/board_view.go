@@ -131,8 +131,14 @@ func (m BoardModel) View() string {
 		status = helpStyle.Render("←→:lists  j/k:cards  ,/.:move card  </>:move first/last  n:new  c:archive  a:archived  L:labels  N:new list  R:rename list  C:archive list  {/}:move list  enter:open  /:filter  r:refresh  esc:back")
 	}
 
-	header := titleStyle.Render(m.board.Name) + scrollHint
-	return header + "\n" + board + "\n" + status
+	var out strings.Builder
+	out.WriteString(titleStyle.Render(m.board.Name))
+	out.WriteString(scrollHint)
+	out.WriteString("\n")
+	out.WriteString(board)
+	out.WriteString("\n")
+	out.WriteString(status)
+	return out.String()
 }
 
 func (m BoardModel) renderLabelManager() string {
@@ -389,7 +395,9 @@ func (m BoardModel) renderColumn(idx int, l trello.List, width int) string {
 }
 
 func renderCard(c trello.Card, width int, selected bool) string {
-	var topLine string
+	var b strings.Builder
+
+	// Top line: labels + due date
 	var parts []string
 	if len(c.Labels) > 0 {
 		var pills []string
@@ -399,36 +407,40 @@ func renderCard(c trello.Card, width int, selected bool) string {
 		parts = append(parts, strings.Join(pills, " "))
 	}
 	if c.Due != "" {
-		if label, style := formatDue(c.Due, c.DueComplete); label != "" {
-			parts = append(parts, style.Render(label))
+		if label, s := formatDue(c.Due, c.DueComplete); label != "" {
+			parts = append(parts, s.Render(label))
 		}
 	}
 	if len(parts) > 0 {
-		topLine = strings.Join(parts, "  ") + "\n"
+		b.WriteString(strings.Join(parts, "  "))
+		b.WriteString("\n")
 	}
 
-	content := topLine + c.Name
+	b.WriteString(c.Name)
 
+	// Bottom line: members + checklist badge
 	var bottomParts []string
 	if len(c.Members) > 0 {
 		var memberBadges []string
 		for _, m := range c.Members {
-			initials := memberInitials(m.FullName)
-			memberBadges = append(memberBadges, memberColor(m.ID).Render(initials))
+			memberBadges = append(memberBadges, memberColor(m.ID).Render(memberInitials(m.FullName)))
 		}
 		bottomParts = append(bottomParts, strings.Join(memberBadges, " "))
 	}
 	if c.Badges.CheckItems > 0 {
 		checkBadge := fmt.Sprintf("☑ %d/%d", c.Badges.CheckItemsChecked, c.Badges.CheckItems)
-		style := lipgloss.NewStyle().Foreground(dimColor)
+		s := lipgloss.NewStyle().Foreground(dimColor)
 		if c.Badges.CheckItemsChecked == c.Badges.CheckItems {
-			style = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981"))
+			s = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981"))
 		}
-		bottomParts = append(bottomParts, style.Render(checkBadge))
+		bottomParts = append(bottomParts, s.Render(checkBadge))
 	}
 	if len(bottomParts) > 0 {
-		content += "\n\n" + strings.Join(bottomParts, "  ")
+		b.WriteString("\n\n")
+		b.WriteString(strings.Join(bottomParts, "  "))
 	}
+
+	content := b.String()
 
 	style := cardStyle
 	if selected {
@@ -518,6 +530,7 @@ func (m BoardModel) renderBoardHelp() string {
 			{"left/right", "Switch lists"},
 			{"j/k", "Move up/down cards"},
 			{"enter", "Open card"},
+			{"?", "Toggle help"},
 			{"esc", "Back (clear filter or exit)"},
 		}},
 		{Title: "Cards", Entries: []helpEntry{

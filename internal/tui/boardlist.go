@@ -287,6 +287,9 @@ func (m BoardListModel) SelectedBoard() *trello.Board {
 	if item == nil {
 		return nil
 	}
-	bi := item.(boardItem)
+	bi, ok := item.(boardItem)
+	if !ok {
+		return nil
+	}
 	return &bi.board
 }

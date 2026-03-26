@@ -177,3 +177,30 @@ func TestVersionCheckMsgEmptyNotice(t *testing.T) {
 		t.Errorf("updateNotice = %q, want empty", app.updateNotice)
 	}
 }
+
+func TestSearchCursorPreservedAfterCardView(t *testing.T) {
+	m := newTestAppModel()
+	m.screen = screenCard
+	m.returnToSearch = true
+	m.search = SearchModel{
+		results:   make([]trello.SearchCard, 20),
+		cursor:    5,
+		scrollTop: 3,
+		searched:  true,
+	}
+	m.card = CardModel{mode: cardView}
+	m.board = BoardModel{cardsByList: map[string][]trello.Card{}}
+
+	// esc from card with returnToSearch should go to search and preserve cursor
+	updated, _ := m.Update(specialKey(tea.KeyEsc))
+	app := updated.(AppModel)
+	if app.screen != screenSearch {
+		t.Fatalf("screen = %d, want screenSearch", app.screen)
+	}
+	if app.search.cursor != 5 {
+		t.Errorf("search cursor = %d, want 5", app.search.cursor)
+	}
+	if app.search.scrollTop != 3 {
+		t.Errorf("search scrollTop = %d, want 3", app.search.scrollTop)
+	}
+}

@@ -173,9 +173,9 @@ Or better, define a structured `APIError` type (see week 4).
 
 ## Checklist
 
-- [ ] Extract `labelColor` map to package level
-- [ ] Convert `renderCard()` and `View()` footer to `strings.Builder`
-- [ ] Fix unsafe type assertion in `boardlist.go`
-- [ ] Consistent error wrapping with `%w` (or deferred to week-1a helper)
-- [ ] Profile `matchesFilter` — only optimize date parsing if needed
-- [ ] Run `go vet ./...` and `go test ./...` pass
+- [x] Extract `labelColor` map to package level
+- [x] Convert `renderCard()` and `View()` footer to `strings.Builder`
+- [x] Fix unsafe type assertion in `boardlist.go`
+- [x] Consistent error wrapping with `%w` — already addressed by `apiError()` helper in week-1a
+- [ ] ~~Profile `matchesFilter`~~ — skipped per plan recommendation (profile first)
+- [x] Run `go vet ./...` and `go test ./...` pass

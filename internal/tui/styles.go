@@ -90,22 +90,25 @@ var TrelloColors = []string{
 	"blue", "sky", "lime", "pink", "black",
 }
 
+var labelColorMap = map[string]lipgloss.Color{
+	"green":  lipgloss.Color("#10B981"),
+	"yellow": lipgloss.Color("#F59E0B"),
+	"orange": lipgloss.Color("#F97316"),
+	"red":    lipgloss.Color("#EF4444"),
+	"purple": lipgloss.Color("#8B5CF6"),
+	"blue":   lipgloss.Color("#3B82F6"),
+	"sky":    lipgloss.Color("#0EA5E9"),
+	"lime":   lipgloss.Color("#84CC16"),
+	"pink":   lipgloss.Color("#EC4899"),
+	"black":  lipgloss.Color("#374151"),
+}
+
+var defaultLabelColor = lipgloss.Color("#6B7280")
+
 func labelColor(color string) lipgloss.Style {
-	colors := map[string]lipgloss.Color{
-		"green":  lipgloss.Color("#10B981"),
-		"yellow": lipgloss.Color("#F59E0B"),
-		"orange": lipgloss.Color("#F97316"),
-		"red":    lipgloss.Color("#EF4444"),
-		"purple": lipgloss.Color("#8B5CF6"),
-		"blue":   lipgloss.Color("#3B82F6"),
-		"sky":    lipgloss.Color("#0EA5E9"),
-		"lime":   lipgloss.Color("#84CC16"),
-		"pink":   lipgloss.Color("#EC4899"),
-		"black":  lipgloss.Color("#374151"),
-	}
-	c, ok := colors[color]
+	c, ok := labelColorMap[color]
 	if !ok {
-		c = lipgloss.Color("#6B7280")
+		c = defaultLabelColor
 	}
 	return labelStyle.Foreground(c).Bold(true)
 }
