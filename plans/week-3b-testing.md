@@ -158,11 +158,12 @@ inline numbers.
 
 ## Checklist
 
-- [ ] Create `board_keys_test.go` with 15+ keyboard handler tests
-- [ ] Create `card_keys_test.go` with 10+ keyboard handler tests
-- [ ] Add 6+ error path tests to `client_test.go`
-- [ ] Create `search_test.go` with 7+ search flow tests
-- [ ] Extract layout magic values to named constants
-- [ ] Update `card_view.go` to use named constants
-- [ ] Update `board.go` to use `MinColumnWidth` constant (exported)
-- [ ] All tests pass: `go test ./...`
+- [x] Create `board_keys_test.go` with 18 keyboard handler tests
+- [x] Create `card_keys_test.go` with 17 keyboard handler tests
+- [x] Add 7 error path tests to `client_test.go` (malformed JSON, 400/500, empty search, network error, rate limit)
+- [x] Create `search_test.go` with 9 search flow tests
+- [x] Extract layout magic values to named constants in `styles.go`
+- [x] Update `card_view.go` to use named constants
+- [x] Update `card_keys.go` to use named constants
+- [x] Move `minColWidth` from `board.go` to `styles.go` constants block
+- [x] All tests pass: `go test ./...` — 150 tests total

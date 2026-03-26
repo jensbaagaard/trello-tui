@@ -217,11 +217,11 @@ type CardModel struct {
 
 ## Checklist
 
-- [ ] Create `CLAUDE.md` with architecture guide
-- [ ] Document all `boardMode` constants with inline comments
-- [ ] Document all `cardMode` constants with inline comments
-- [ ] Document `boardListMode` constants
-- [ ] Add doc comment to `checkRef` struct
-- [ ] Group `CardModel` fields with section comments
-- [ ] Group `BoardModel` fields with section comments (same pattern)
-- [ ] Review for accuracy after changes
+- [x] Create `CLAUDE.md` with architecture guide
+- [x] Document all `boardMode` constants with inline comments (17 modes)
+- [x] Document all `cardMode` constants with inline comments (20 modes)
+- [x] Document `boardListMode` constants (3 modes)
+- [x] Add doc comment to `checkRef` struct with field descriptions
+- [x] Group `CardModel` fields with section comments (8 groups)
+- [x] Group `BoardModel` fields with section comments (8 groups)
+- [x] Review for accuracy — `go vet` and `go test` pass

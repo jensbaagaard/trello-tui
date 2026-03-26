@@ -49,33 +49,33 @@ func (m CardModel) View() string {
 	var pane1H, pane2H, paneAttH, paneActH int
 	switch {
 	case showChecklist && showAttachments:
-		pane1H = usable * 35 / 100
-		pane2H = usable * 25 / 100
-		paneAttH = usable * 20 / 100
+		pane1H = usable * infoPanePercent4 / 100
+		pane2H = usable * checklistPanePercent / 100
+		paneAttH = usable * attachPanePercent4 / 100
 		paneActH = usable - pane1H - pane2H - paneAttH
 	case showChecklist:
-		pane1H = usable * 40 / 100
-		pane2H = usable * 30 / 100
+		pane1H = usable * infoPanePercent3CL / 100
+		pane2H = usable * checklistPanePercent3 / 100
 		paneActH = usable - pane1H - pane2H
 	case showAttachments:
-		pane1H = usable * 45 / 100
-		paneAttH = usable * 25 / 100
+		pane1H = usable * infoPanePercent3Att / 100
+		paneAttH = usable * attachPanePercent3 / 100
 		paneActH = usable - pane1H - paneAttH
 	default:
-		pane1H = usable * 55 / 100
+		pane1H = usable * infoPanePercent2 / 100
 		paneActH = usable - pane1H
 	}
-	if pane1H < 9 {
-		pane1H = 9
+	if pane1H < minInfoPaneHeight {
+		pane1H = minInfoPaneHeight
 	}
-	if pane2H > 0 && pane2H < 6 {
-		pane2H = 6
+	if pane2H > 0 && pane2H < minSubPaneHeight {
+		pane2H = minSubPaneHeight
 	}
-	if paneAttH > 0 && paneAttH < 6 {
-		paneAttH = 6
+	if paneAttH > 0 && paneAttH < minSubPaneHeight {
+		paneAttH = minSubPaneHeight
 	}
-	if paneActH < 6 {
-		paneActH = 6
+	if paneActH < minSubPaneHeight {
+		paneActH = minSubPaneHeight
 	}
 
 	box1 := m.renderInfoPane(w, pane1H, m.infoScroll)

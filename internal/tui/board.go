@@ -10,62 +10,68 @@ import (
 	"github.com/jensbaagaard/trello-tui/internal/trello"
 )
 
-const minColWidth = 36
-
 type boardMode int
 
 const (
-	boardNav boardMode = iota
-	boardAddCard
-	boardConfirmArchive
-	boardFilter
-	boardLabelManager
-	boardLabelCreate
-	boardLabelEdit
-	boardLabelColorPick
-	boardLabelConfirmDelete
-	boardArchive
-	boardArchiveFilter
-	boardAddList
-	boardRenameList
-	boardConfirmArchiveList
-	boardMemberManager
-	boardInviteMember
-	boardConfirmRemoveMember
+	boardNav                 boardMode = iota // Default: navigating lists and cards
+	boardAddCard                              // Typing new card name (textInput active)
+	boardConfirmArchive                       // Awaiting y/n to archive selected card
+	boardFilter                               // Typing filter query (textInput active)
+	boardLabelManager                         // Browsing board labels list
+	boardLabelCreate                          // Typing new label name
+	boardLabelEdit                            // Editing existing label name
+	boardLabelColorPick                       // Selecting color for label (cursor on color list)
+	boardLabelConfirmDelete                   // Awaiting y/n to delete label
+	boardArchive                              // Browsing archived cards
+	boardArchiveFilter                        // Typing filter in archive view
+	boardAddList                              // Typing new list name
+	boardRenameList                           // Typing new name for current list
+	boardConfirmArchiveList                   // Awaiting y/n to archive current list
+	boardMemberManager                        // Browsing board members
+	boardInviteMember                         // Typing email to invite
+	boardConfirmRemoveMember                  // Awaiting y/n to remove member
 )
 
 type BoardModel struct {
+	// Core data
 	client      *trello.Client
 	board       trello.Board
 	lists       []trello.List
-	cardsByList map[string][]trello.Card
-	activeList  int
-	activeCard  int
-	scrollTop   int // per-column vertical scroll offset for the active list
-	colOffset   int // first visible column index (horizontal scroll)
-	width       int
-	height      int
-	loading     bool
-	err         error
-	mode        boardMode
-	textInput   textinput.Model
-	statusMsg   string
-	filterText  string
+	cardsByList map[string][]trello.Card // maps list ID -> cards in that list
 
-	// Label manager
+	// Navigation state
+	activeList int
+	activeCard int
+	scrollTop  int // per-column vertical scroll offset for the active list
+	colOffset  int // first visible column index (horizontal scroll)
+	mode       boardMode
+
+	// Display state
+	width     int
+	height    int
+	loading   bool
+	err       error
+	statusMsg string
+	showHelp  bool
+
+	// General text input (used by boardAddCard, boardFilter, boardAddList, boardRenameList)
+	textInput  textinput.Model
+	filterText string
+
+	// Label manager (boardLabelManager / boardLabelCreate / boardLabelEdit modes)
 	boardLabels    []trello.Label
 	labelCursor    int
 	labelNameInput textinput.Model
 	labelColorIdx  int
 	editingLabelID string
 
-	// Archive viewer
+	// Archive viewer (boardArchive / boardArchiveFilter modes)
 	archivedCards     []trello.Card
 	archiveCursor     int
 	archiveScrollTop  int
 	archiveFilterText string
 
-	// Member manager
+	// Member manager (boardMemberManager / boardInviteMember modes)
 	boardMembers     []trello.Member
 	memberCursor     int
 	memberEmailInput textinput.Model
@@ -73,8 +79,6 @@ type BoardModel struct {
 
 	// Auto-refresh
 	autoRefreshSecs int
-
-	showHelp bool
 }
 
 func NewBoardModel(client *trello.Client, board trello.Board) BoardModel {

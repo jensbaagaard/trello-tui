@@ -2,6 +2,31 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
+// Layout constants
+const (
+	minColWidth = 36 // Minimum column width for board view
+
+	// Pane height percentages for card detail view (4-pane layout)
+	infoPanePercent4     = 35
+	checklistPanePercent = 25
+	attachPanePercent4   = 20
+
+	// Pane height percentages (3-pane with checklist)
+	infoPanePercent3CL     = 40
+	checklistPanePercent3  = 30
+
+	// Pane height percentages (3-pane with attachments)
+	infoPanePercent3Att = 45
+	attachPanePercent3  = 25
+
+	// Pane height percentages (2-pane: info + activity)
+	infoPanePercent2 = 55
+
+	// Minimum pane heights
+	minInfoPaneHeight = 9
+	minSubPaneHeight  = 6
+)
+
 var (
 	// Colors
 	primaryColor   = lipgloss.Color("#7C3AED")

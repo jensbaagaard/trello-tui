@@ -595,14 +595,14 @@ func (m CardModel) handleKey(msg tea.KeyMsg) (CardModel, tea.Cmd) {
 			var pane1H int
 			switch {
 			case showChecklist && showAtt:
-				pane1H = available * 35 / 100
+				pane1H = available * infoPanePercent4 / 100
 			case showChecklist || showAtt:
-				pane1H = available * 40 / 100
+				pane1H = available * infoPanePercent3CL / 100
 			default:
-				pane1H = available * 55 / 100
+				pane1H = available * infoPanePercent2 / 100
 			}
-			if pane1H < 9 {
-				pane1H = 9
+			if pane1H < minInfoPaneHeight {
+				pane1H = minInfoPaneHeight
 			}
 			innerW := m.width - 2 - 4 // outer padding(2) + pane borders+padding(4)
 			if innerW < 20 {

@@ -22,9 +22,9 @@ const artHeight = 5
 type boardListMode int
 
 const (
-	boardListNav           boardListMode = iota
-	boardListCreate                      // typing a new board name
-	boardListWorkspacePick               // picking a workspace for the new board
+	boardListNav           boardListMode = iota // Default: browsing and filtering boards
+	boardListCreate                             // Typing a new board name
+	boardListWorkspacePick                      // Picking a workspace for the new board
 )
 
 // boardItem implements list.Item for the bubbles/list component

@@ -18,73 +18,94 @@ import (
 type cardMode int
 
 const (
-	cardView cardMode = iota
-	cardEditTitle
-	cardEditDesc
-	cardMoveList
-	cardAddMember
-	cardAddLabel
-	cardSetDue
-	cardCreateLabel
-	cardCreateLabelColor
-	cardChecklistPane
-	cardAttachmentsPane
-	cardActivityPane
-	cardAddComment
-	cardAddChecklist
-	cardAddCheckItem
-	cardAddAttachment
-	cardConfirmDeleteChecklist
-	cardConfirmDeleteAttachment
-	cardMoveBoard
-	cardMoveBoardList
+	cardView                    cardMode = iota // Default: viewing card with pane tabs
+	cardEditTitle                               // Editing card title (textInput active)
+	cardEditDesc                                // Editing description (textarea active)
+	cardMoveList                                // Selecting target list with cursor
+	cardAddMember                               // Toggling members on/off with filter
+	cardAddLabel                                // Toggling labels on/off with filter
+	cardSetDue                                  // Typing due date (textInput active)
+	cardCreateLabel                             // Typing name for new label
+	cardCreateLabelColor                        // Selecting color for new label
+	cardChecklistPane                           // Navigating checklist items
+	cardAttachmentsPane                         // Navigating attachments
+	cardActivityPane                            // Scrolling activity feed
+	cardAddComment                              // Writing comment (textarea active)
+	cardAddChecklist                            // Typing new checklist name
+	cardAddCheckItem                            // Typing new checklist item name
+	cardAddAttachment                           // Typing URL for new attachment
+	cardConfirmDeleteChecklist                  // Awaiting y/n to delete checklist
+	cardConfirmDeleteAttachment                 // Awaiting y/n to delete attachment
+	cardMoveBoard                               // Selecting target board with filter
+	cardMoveBoardList                           // Selecting target list on target board
 )
 
-type checkRef struct{ cl, it int }
+// checkRef identifies a specific checklist item by its checklist and item indices.
+type checkRef struct {
+	cl int // checklist index in m.checklists
+	it int // item index within that checklist's CheckItems
+}
 
 type CardModel struct {
-	client       *trello.Client
-	card         trello.Card
-	lists        []trello.List
-	listIndex    int
-	listName     string
-	boardID      string
+	// Core data
+	client  *trello.Client
+	card    trello.Card
+	lists   []trello.List
+	boardID string
+
+	// Card data (fetched async on Init)
 	boardMembers []trello.Member
 	boardLabels  []trello.Label
 	checklists   []trello.Checklist
 	attachments  []trello.Attachment
 	actions      []trello.Action
-	mode         cardMode
-	titleEdit    textinput.Model
-	descEdit     textarea.Model
-	dueInput     textinput.Model
+
+	// Navigation state
+	listIndex int
+	listName  string
+	mode      cardMode
+
+	// Edit inputs (active in corresponding edit modes)
+	titleEdit      textinput.Model
+	descEdit       textarea.Model
+	dueInput       textinput.Model
 	pickerFilter   textinput.Model
 	labelNameInput textinput.Model
-	labelColorIdx  int
-	commentInput    textarea.Model
-	checklistInput  textinput.Model
-	moveIndex       int
-	memberIndex     int
+	commentInput   textarea.Model
+	checklistInput textinput.Model
+
+	// Move-to-board state (cardMoveBoard / cardMoveBoardList modes)
 	allBoards       []trello.Board
 	boardIndex      int
 	targetBoard     trello.Board
 	targetLists     []trello.List
 	targetListIndex int
-	labelIndex   int
+
+	// Cursor positions per mode/pane
+	moveIndex     int
+	memberIndex   int
+	labelIndex    int
+	labelColorIdx int
 	checkItemIdx  int
 	attachmentIdx int
 	activityIdx   int
-	infoScroll    int
-	clScroll      int
-	attScroll     int
-	actScroll     int
-	width        int
-	height       int
-	statusMsg    string
-	loadingCL    bool
-	loadingAtt   bool
-	loadingCom   bool
-	showHelp     bool
+
+	// Scroll positions per pane
+	infoScroll int
+	clScroll   int
+	attScroll  int
+	actScroll  int
+
+	// Display state
+	width     int
+	height    int
+	statusMsg string
+	showHelp  bool
+
+	// Loading indicators
+	loadingCL  bool
+	loadingAtt bool
+	loadingCom bool
 }
 
 func NewCardModel(client *trello.Client, card trello.Card, lists []trello.List, listIndex int) CardModel {

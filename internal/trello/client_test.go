@@ -515,6 +515,96 @@ func TestNewClient_HasTimeout(t *testing.T) {
 	}
 }
 
+// ── Week 3b: Additional error path tests ─────────────────────────────────────
+
+func TestGetBoards_MalformedJSON(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("not valid json {{{"))
+	}))
+	defer srv.Close()
+
+	_, err := c.GetBoards()
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+}
+
+func TestGetBoards_ServerError(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("internal error"))
+	}))
+	defer srv.Close()
+
+	_, err := c.GetBoards()
+	if err == nil {
+		t.Fatal("expected error for 500")
+	}
+	if !strings.Contains(err.Error(), "API error 500") {
+		t.Errorf("error = %q, want it to contain 'API error 500'", err.Error())
+	}
+}
+
+func TestCreateCard_ValidationError(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("invalid idList"))
+	}))
+	defer srv.Close()
+
+	_, err := c.CreateCard("bad-list", "test")
+	if err == nil {
+		t.Fatal("expected error for 400")
+	}
+	if !strings.Contains(err.Error(), "API error 400") {
+		t.Errorf("error = %q, want it to contain 'API error 400'", err.Error())
+	}
+}
+
+func TestSearchCards_EmptyResults(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"cards":[]}`))
+	}))
+	defer srv.Close()
+
+	cards, err := c.SearchCards("nonexistent", 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cards) != 0 {
+		t.Errorf("len = %d, want 0", len(cards))
+	}
+}
+
+func TestGetBoards_NetworkError(t *testing.T) {
+	c := NewClient("key", "token")
+	c.baseURL = "http://localhost:1" // nothing listening
+
+	_, err := c.GetBoards()
+	if err == nil {
+		t.Fatal("expected error for unreachable server")
+	}
+	if !strings.Contains(err.Error(), "request failed") {
+		t.Errorf("error = %q, want it to contain 'request failed'", err.Error())
+	}
+}
+
+func TestApiError_RateLimited(t *testing.T) {
+	c, srv := testClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte("slow down"))
+	}))
+	defer srv.Close()
+
+	_, err := c.GetBoards()
+	if err == nil {
+		t.Fatal("expected error for 429")
+	}
+	if !strings.Contains(err.Error(), "rate limited") {
+		t.Errorf("error = %q, want 'rate limited'", err.Error())
+	}
+}
+
 // Verify unused imports don't break — these are used above
 var _ = io.ReadAll
 var _ = fmt.Sprintf
