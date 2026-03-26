@@ -155,11 +155,11 @@ if listName == card.IDList {
 
 ## Checklist
 
-- [ ] HTTP client timeout (30s) + TLS 1.2 minimum
-- [ ] Handle `os.Chmod` error in config.go
-- [ ] Error recovery hints on board error state
-- [ ] Error recovery hints on empty board state
-- [ ] Error recovery hints on search error/empty states
-- [ ] Archived card list name fallback
-- [ ] Tests for timeout behavior
-- [ ] Run `go vet ./...` and `go test ./...` pass
+- [x] HTTP client timeout (30s) + TLS 1.2 minimum *(done in week-1a)*
+- [x] Handle `os.Chmod` error in config.go
+- [x] Error recovery hints on board error state
+- [x] Error recovery hints on empty board state
+- [x] Error recovery hints on search error/empty states
+- [x] Archived card list name fallback
+- [x] Tests for timeout behavior *(done in week-1a)*
+- [x] Run `go vet ./...` and `go test ./...` pass

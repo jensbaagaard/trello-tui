@@ -27,11 +27,13 @@ func (m SearchModel) View() string {
 	} else if m.statusMsg != "" {
 		b.WriteString(errorStyle.Render(m.statusMsg))
 		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("/:try again  esc:back"))
+		b.WriteString("\n")
 	} else if !m.searched {
 		b.WriteString(helpStyle.Render("Type a query and press enter"))
 		b.WriteString("\n")
 	} else if len(m.results) == 0 {
-		b.WriteString(helpStyle.Render("No results"))
+		b.WriteString(helpStyle.Render("No results — try a different query"))
 		b.WriteString("\n")
 	} else {
 		visible := m.visibleResultCount()

@@ -43,13 +43,15 @@ func measureCard(c trello.Card, width int) int {
 
 func (m BoardModel) View() string {
 	if m.err != nil {
-		return errorStyle.Render(fmt.Sprintf("Error: %v", m.err))
+		return errorStyle.Render(fmt.Sprintf("Error: %v", m.err)) +
+			"\n\n" + helpStyle.Render("r:retry  esc:back to boards")
 	}
 	if m.loading {
 		return fmt.Sprintf("Loading board: %s...", m.board.Name)
 	}
 	if len(m.lists) == 0 {
-		return "No lists found on this board."
+		return "No lists found on this board.\n\n" +
+			helpStyle.Render("N:new list  r:refresh  esc:back")
 	}
 
 	if m.showHelp {
@@ -293,6 +295,9 @@ func (m BoardModel) renderArchiveView() string {
 					listName = l.Name
 					break
 				}
+			}
+			if listName == card.IDList {
+				listName = "(deleted list)"
 			}
 			b.WriteString(cursor + s.Render(card.Name) + helpStyle.Render("  ["+listName+"]") + "\n")
 		}

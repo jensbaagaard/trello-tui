@@ -35,8 +35,11 @@ func loadFromDir(configDir string) (Config, error) {
 	info, err := os.Stat(configPath)
 	if err == nil {
 		if perm := info.Mode().Perm(); perm&0o077 != 0 {
-			_ = os.Chmod(configPath, 0o600)
-			fmt.Fprintf(os.Stderr, "Warning: fixed permissions on %s (was %o, now 600)\n", configPath, perm)
+			if chmodErr := os.Chmod(configPath, 0o600); chmodErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not fix permissions on %s: %v\n", configPath, chmodErr)
+			} else {
+				fmt.Fprintf(os.Stderr, "Warning: fixed permissions on %s (was %o, now 600)\n", configPath, perm)
+			}
 		}
 	}
 
