@@ -150,10 +150,37 @@ func (c *Client) request(method, endpoint string, body map[string]string, result
 }
 
 func (c *Client) GetBoards() ([]Board, error) {
-	var boards []Board
-	params := url.Values{"filter": {"open"}}
-	err := c.get("/members/me/boards", params, &boards)
-	return boards, err
+	var memberBoards []Board
+	if err := c.get("/members/me/boards", nil, &memberBoards); err != nil {
+		return nil, err
+	}
+
+	var orgs []Organization
+	if err := c.get("/members/me/organizations", nil, &orgs); err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]bool)
+	var all []Board
+	for _, b := range memberBoards {
+		if !b.Closed && !seen[b.ID] {
+			seen[b.ID] = true
+			all = append(all, b)
+		}
+	}
+	for _, org := range orgs {
+		var orgBoards []Board
+		if err := c.get("/organizations/"+org.ID+"/boards", url.Values{"filter": {"open"}}, &orgBoards); err != nil {
+			continue
+		}
+		for _, b := range orgBoards {
+			if !b.Closed && !seen[b.ID] {
+				seen[b.ID] = true
+				all = append(all, b)
+			}
+		}
+	}
+	return all, nil
 }
 
 func (c *Client) GetLists(boardID string) ([]List, error) {
